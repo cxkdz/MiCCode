@@ -1,0 +1,2166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MiCCode">
+<meta name="application-name" content="MiCCode">
+<meta name="theme-color" content="#080808">
+<title>MiCCode</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="vendor/codemirror.css">
+<link rel="stylesheet" href="vendor/theme.css">
+<link rel="stylesheet" href="vendor/show-hint.css">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #1b1b1b; color: #d6d6d6;
+    font: 13px/1.5 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background: #232323; border-bottom: 1px solid #333; flex: 0 0 auto;
+  }
+  header .spacer { flex: 1; }
+  button, select {
+    background: #2f2f2f; color: #ddd; border: 1px solid #444; border-radius: 6px;
+    padding: 6px 12px; font-size: 13px; font-family: inherit; cursor: pointer;
+    white-space: nowrap; flex: 0 0 auto;
+  }
+  button:hover, select:hover { background: #3a3a3a; }
+  button:active { background: #454545; }
+  #run { background: #1d6f4a; border-color: #2a9d68; color: #eafff5; font-weight: 500; }
+  #run:hover { background: #248a5c; }
+  #run:disabled { opacity: .5; cursor: default; }
+  #appIcon {
+    width: 22px; height: 22px; border-radius: 6px; object-fit: cover;
+    flex: 0 0 auto; box-shadow: 0 0 0 1px #3a3a3a;
+  }
+  #badge { color: #7a7a7a; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  main { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  #editorWrap { flex: 1 1 58%; min-height: 0; overflow: hidden; position: relative; }
+  .CodeMirror { height: 100%; font-family: "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace; font-size: 13.5px; line-height: 1.55; }
+  .CodeMirror-gutters { border-right: 1px solid #2c2c2c; }
+
+  #outputWrap {
+    flex: 0 0 30%; min-height: 90px; display: flex; flex-direction: column;
+    border-top: 1px solid #333; background: #141414;
+  }
+  #outHead {
+    display: flex; align-items: center; gap: 10px; padding: 5px 12px;
+    color: #8a8a8a; font-size: 12px; border-bottom: 1px solid #262626; flex: 0 0 auto;
+  }
+  #outHead .spacer { flex: 1; }
+  #outHead button { padding: 2px 8px; font-size: 12px; }
+  #output {
+    flex: 1 1 auto; margin: 0; padding: 8px 12px; overflow: auto;
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px;
+    white-space: pre-wrap; word-break: break-word; color: #cfcfcf;
+  }
+  .ok { color: #6dd49a; } .bad { color: #ff8b8b; }
+
+  footer#sigbar {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+    padding: 5px 12px; background: #232323; border-top: 1px solid #333;
+    min-height: 34px; white-space: nowrap; font-size: 12.5px;
+  }
+  #sigText { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #hintBtn { flex: 0 0 auto; padding: 3px 12px; font-size: 12px; }
+  #sigbar .sig { font-family: Consolas, monospace; color: #9fd4ff; }
+  #sigbar .doc { color: #8a8a8a; font-size: 12px; }
+  #sigbar .muted { color: #666; }
+
+  #tip {
+    position: absolute; z-index: 50; max-width: min(520px, 88vw);
+    background: #1f2430; border: 1px solid #3b4657; border-radius: 8px;
+    padding: 8px 10px; box-shadow: 0 8px 24px rgba(0,0,0,.5); display: none;
+  }
+  #tip .t { font-weight: 500; color: #cfe3ff; font-size: 12.5px; margin-bottom: 5px; }
+  #tip .r { display: flex; flex-direction: column; gap: 1px; padding: 3px 0; border-top: 1px solid #2b3444; }
+  #tip .r:first-of-type { border-top: 0; }
+  #tip code { font-family: Consolas, monospace; font-size: 12px; color: #9fd4ff; white-space: pre-wrap; word-break: break-word; }
+  #tip .d { color: #8e97a6; font-size: 11.5px; line-height: 1.45; }
+  #tip .warn { color: #e0b070; font-size: 12px; }
+
+  /* ── 深色化：纯黑编辑器 + 深色补全框 ──
+     CodeMirror 的 hint 下拉框默认是白底黑字（跟主题无关），在深色编辑器上极刺眼 */
+  body { background: #080808; }
+  header { background: #151515; border-bottom-color: #262626; }
+  footer#sigbar { background: #151515; border-top-color: #262626; }
+  #outputWrap { background: #0b0b0b; border-color: #262626; }
+  #outHead { border-bottom-color: #1e1e1e; }
+
+  .cm-s-material-darker.CodeMirror { background: #0d0d0d; color: #e3e3e3; }
+  .cm-s-material-darker .CodeMirror-gutters { background: #0d0d0d; border-right: 1px solid #1e1e1e; }
+  .cm-s-material-darker .CodeMirror-linenumber { color: #4d4d4d; }
+  .cm-s-material-darker .CodeMirror-activeline-background { background: #ffffff0a; }
+  .cm-s-material-darker .CodeMirror-cursor { border-left: 2px solid #7ee2ff; }
+
+  .CodeMirror-hints {
+    background: #121212 !important;
+    border: 1px solid #343434 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 10px 32px rgba(0,0,0,.85) !important;
+    padding: 4px 0 !important;
+    max-height: 320px;
+  }
+  .CodeMirror-hint { color: #c9c9c9 !important; padding: 4px 12px !important; }
+  li.CodeMirror-hint-active { background: #1f6feb !important; color: #ffffff !important; }
+
+  .CodeMirror-hints .hint-kw { color: #d2a8ff !important; }
+  .CodeMirror-hints .hint-type { color: #ffcb6b !important; }
+  .CodeMirror-hints .hint-member { color: #7ee2ff !important; }
+  .CodeMirror-hints .hint-var { color: #a5e8a5 !important; }
+
+  /* ── DeepSeek 分屏 / 侧栏 ── */
+  #dsBtn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #26325c; border-color: #4d6bfe; color: #c7d3ff;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  #dsBtn:hover { background: #313f72; }
+  #dsBtn svg { flex: 0 0 auto; }
+  #dsCaret {
+    flex: 0 0 auto; margin-left: 1px; padding: 1px 2px 1px 6px;
+    border-left: 1px solid #42538c; color: #9db4ff; font-size: 10.5px;
+    line-height: 1; opacity: .9;
+  }
+  #dsBtnIcon {
+    width: 17px; height: 17px; border-radius: 5px; flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    overflow: hidden; background: transparent;
+  }
+  #dsBtnIcon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 58px; transform: translateX(-50%);
+    background: #16281c; border: 1px solid #2f5138; color: #a8e0bb;
+    padding: 9px 18px; border-radius: 9px; font-size: 13px;
+    z-index: 400; display: none; max-width: 82vw; text-align: center;
+    box-shadow: 0 8px 24px rgba(0,0,0,.6); white-space: pre-wrap;
+  }
+  #toast.warn { background: #2a2416; border-color: #5a4a1e; color: #e3cb92; }
+
+  /* ── 分屏搭档选择器 ── */
+  #pickWrap {
+    position: fixed; inset: 0; background: rgba(0,0,0,.74);
+    z-index: 500; display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  #pickWrap.open { display: flex; }
+  #pickBox {
+    width: min(460px, 94vw); max-height: 82vh; display: flex; flex-direction: column;
+    background: #121212; border: 1px solid #343434; border-radius: 14px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.88); overflow: hidden;
+  }
+  #pickHead {
+    display: flex; align-items: center; gap: 10px; padding: 13px 16px;
+    border-bottom: 1px solid #262626; color: #e0e0e0; font-weight: 500; font-size: 13.5px;
+  }
+  #pickHead span { flex: 1; }
+  #pickHead button { padding: 2px 8px; font-size: 15px; line-height: 1; }
+  #pickTip {
+    padding: 8px 16px; color: #7d7d7d; font-size: 12px;
+    border-bottom: 1px solid #1e1e1e; flex: 0 0 auto;
+  }
+  #pickList { overflow-y: auto; flex: 1 1 auto; min-height: 100px; }
+  #pickSearch { padding: 9px 14px 0; flex: 0 0 auto; }
+  #pickSearch input {
+    width: 100%; box-sizing: border-box;
+    background: #1b1b1b; border: 1px solid #333; border-radius: 7px;
+    color: #ddd; padding: 7px 10px; font-size: 12.5px; font-family: inherit;
+  }
+  #pickSearch input:focus { outline: none; border-color: #4d6bfe; }
+  .pick-empty { padding: 18px 16px; color: #6a6a6a; font-size: 12.5px; }
+  .pick-item {
+    display: flex; align-items: center; gap: 11px; padding: 10px 16px;
+    cursor: pointer; border-bottom: 1px solid #191919;
+  }
+  .pick-item:hover { background: #1d1d1d; }
+  .pick-item.cur { background: #17233d; }
+  .pick-badge {
+    width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 12.5px; font-weight: 600; overflow: hidden;
+  }
+  .pick-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pick-cam {
+    width: 27px; height: 27px; padding: 0; flex: 0 0 auto; margin-left: auto;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid #2e2e2e; border-radius: 7px;
+    color: #6a6a6a; font-size: 15px; line-height: 1;
+  }
+  .pick-cam:hover { background: #272727; color: #c0c0c0; border-color: #454545; }
+  /* 一行里有两个按钮（导出+删除）时：第一个推到右侧，第二个只留小间距 */
+  .pick-cam + .pick-cam { margin-left: 6px; }
+  .pick-name { color: #dcdcdc; font-size: 13px; }
+  .pick-pkg {
+    color: #6f6f6f; font-size: 11.5px; font-family: Consolas, monospace; margin-top: 1px;
+  }
+  #pickCustom {
+    display: flex; gap: 8px; padding: 10px 14px;
+    border-top: 1px solid #262626; flex: 0 0 auto;
+  }
+
+  /* ── 文件面板（复用 pick-item 系列样式）── */
+  #fileWrap {
+    position: fixed; inset: 0; background: rgba(0,0,0,.74);
+    z-index: 500; display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  #fileWrap.open { display: flex; }
+  #fileBox {
+    width: min(460px, 94vw); max-height: 82vh; display: flex; flex-direction: column;
+    background: #121212; border: 1px solid #343434; border-radius: 14px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.88); overflow: hidden;
+  }
+  #fileSave {
+    display: flex; gap: 8px; padding: 10px 14px;
+    border-bottom: 1px solid #262626; flex: 0 0 auto;
+  }
+  #fileName {
+    flex: 1; background: #1b1b1b; border: 1px solid #333; border-radius: 7px;
+    color: #ddd; padding: 7px 10px; font-size: 12.5px; min-width: 0;
+  }
+  #fileName:focus { outline: none; border-color: #4d6bfe; }
+  #gitRow { display: none; gap: 8px; padding: 0 14px 10px; flex: 0 0 auto; }
+  #gitRow.open { display: flex; }
+  #gitUrl {
+    flex: 1; background: #1b1b1b; border: 1px solid #333; border-radius: 7px;
+    color: #ddd; padding: 7px 10px; font-size: 12.5px; min-width: 0;
+    font-family: Consolas, monospace;
+  }
+  #gitUrl:focus { outline: none; border-color: #4d6bfe; }
+  #fileList { overflow-y: auto; flex: 1 1 auto; min-height: 80px; }
+  #fileActions {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px;
+    border-top: 1px solid #262626; flex: 0 0 auto; color: #6a6a6a; font-size: 12px;
+  }
+  #fileActions .spacer { flex: 1; }
+  /* 这一行有 5 个按钮 + 计数，收紧一点避免换行 */
+  #fileActions button { padding: 5px 8px; font-size: 12px; }
+  #fileCount { white-space: nowrap; }
+  #fileClearAll.danger {
+    color: #e07070; border-color: #6a3030; background: #2a1a1a;
+  }
+  #curFile {
+    color: #7d7d7d; font-size: 12px; max-width: 130px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #pickInput {
+    flex: 1; background: #1b1b1b; border: 1px solid #333; border-radius: 7px;
+    color: #ddd; padding: 7px 10px; font-size: 12.5px; font-family: Consolas, monospace;
+    min-width: 0;
+  }
+  #pickInput:focus { outline: none; border-color: #4d6bfe; }
+
+  #dsPanel {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(620px, 94vw);
+    background: #0d0d0d; border-left: 1px solid #333;
+    box-shadow: -14px 0 44px rgba(0,0,0,.8);
+    z-index: 300; display: none; flex-direction: column;
+  }
+  #dsPanel.open { display: flex; }
+  #dsHead {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; border-bottom: 1px solid #262626; flex: 0 0 auto;
+  }
+  #dsHead .ds-title { color: #c7d3ff; font-weight: 500; }
+  #dsHead a { color: #7ea2ff; font-size: 12px; text-decoration: none; }
+  #dsHead a:hover { text-decoration: underline; }
+  #dsHint {
+    padding: 6px 12px; color: #9a8a63; font-size: 12px;
+    background: #1a1710; border-bottom: 1px solid #2a2418; flex: 0 0 auto;
+  }
+  #dsFrame { flex: 1 1 auto; width: 100%; border: 0; background: #ffffff; }
+
+  @media (min-width: 900px) {
+    main { flex-direction: row; }
+    #editorWrap { flex: 1 1 62%; }
+    #outputWrap { flex: 1 1 38%; border-top: 0; border-left: 1px solid #333; }
+  }
+
+  /* 小窗 / 分屏窄栏：空间不够时优先保编辑器，输出区让位 */
+  @media (max-height: 560px) {
+    header { padding: 5px 9px; gap: 6px; }
+    #outputWrap { flex: 0 0 auto; min-height: 50px; max-height: 34%; }
+    #outHead { padding: 3px 9px; font-size: 11.5px; }
+    #output { font-size: 11.5px; padding: 6px 9px; }
+    footer#sigbar { min-height: 28px; padding: 3px 9px; font-size: 11.5px; }
+    .CodeMirror { font-size: 12.5px; line-height: 1.45; }
+    .CodeMirror-linenumber { font-size: 11px; }
+  }
+  @media (max-width: 480px) {
+    #appIcon, #curFile { display: none; }
+    #badge { display: none; }
+    #samples { max-width: 96px; }
+    #run { padding: 6px 9px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <img id="appIcon" src="icon-192.png" alt="MiCCode">
+  <select id="mode" title="切换补全用的 API 集合">
+    <option value="csharp">C# 脚本</option>
+    <option value="unity">Unity 脚本</option>
+  </select>
+  <button id="run">▶ 运行</button>
+  <button id="fileBtn" title="保存 / 打开 / 新建（Ctrl+S）">文件</button>
+  <select id="samples">
+    <option value="">载入示例…</option>
+  </select>
+  <span class="spacer"></span>
+  <span id="curFile" title="当前文件">未命名</span>
+  <span id="badge">符号表加载中…</span>
+</header>
+
+<main>
+  <div id="editorWrap"><textarea id="code"></textarea></div>
+  <div id="outputWrap">
+    <div id="outHead">
+      <span>输出</span>
+      <span id="runInfo"></span>
+      <span class="spacer"></span>
+      <button id="askBtn" title="复制当前代码到剪贴板，粘给 AI（Ctrl+Shift+C）">发给搭档</button>
+      <button id="dsBtn" title="点一下分屏到旁边；点右边 ▾ 或长按换搭子">
+        <span id="dsBtnIcon"></span>
+        <span id="dsBtnText">选搭子</span>
+        <span id="dsCaret">▾</span>
+      </button>
+      <button id="clearOut">清空</button>
+    </div>
+    <pre id="output">准备就绪。点「运行」编译执行。</pre>
+  </div>
+</main>
+
+<footer id="sigbar">
+  <div id="sigText"><span class="muted">光标停在标识符上，这里显示签名</span></div>
+  <button id="hintBtn" title="手动弹出补全列表">补全</button>
+</footer>
+
+<div id="tip"></div>
+<div id="toast"></div>
+
+<div id="pickWrap">
+  <div id="pickBox">
+    <div id="pickHead">
+      <span>选择搭子</span>
+      <button id="pickClose" title="关闭">×</button>
+    </div>
+    <div id="pickSearch">
+      <input id="pickFilter" type="text" placeholder="搜索应用名或包名" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="pickTip">选中后会记住，以后点一下就直接把它放到旁边，不用再选。</div>
+    <div id="pickList"></div>
+    <div id="pickCustom">
+      <input id="pickInput" type="text" placeholder="或直接输入包名" autocomplete="off" spellcheck="false">
+      <button id="pickAdd">用这个</button>
+    </div>
+  </div>
+</div>
+
+<div id="fileWrap">
+  <div id="fileBox">
+    <div id="pickHead">
+      <span>文件</span>
+      <button id="fileClose" title="关闭">×</button>
+    </div>
+    <div id="fileSave">
+      <input id="fileName" type="text" placeholder="文件名，如 协程练习" autocomplete="off" spellcheck="false">
+      <button id="fileSaveBtn">保存</button>
+    </div>
+    <div id="gitRow">
+      <input id="gitUrl" type="text" placeholder="GitHub 仓库 / 文件夹 / 文件链接" autocomplete="off" spellcheck="false">
+      <button id="gitFetch">拉取</button>
+    </div>
+    <div id="pickTip">点列表打开；保存会连当前模式（C# / Unity）一起记录。编辑已保存的文件时自动同步。</div>
+    <div id="fileList"></div>
+    <div id="fileActions">
+      <button id="fileNew">＋ 新建</button>
+      <button id="fileImport" title="选 .cs / .txt（可按多个：长按第一个文件后勾选）">导入 .cs</button>
+      <button id="fileFolder" title="选文件夹后要按底部的「使用此文件夹」才会生效">导入文件夹</button>
+      <button id="gitToggle" title="从 GitHub 仓库/文件夹/文件拉代码">GitHub</button>
+      <span class="spacer"></span>
+      <button id="fileClearAll" title="清空文件列表（编辑器里的内容不受影响）">清空</button>
+      <span id="fileCount"></span>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/codemirror.js"></script>
+<script src="vendor/clike.js"></script>
+<script src="vendor/show-hint.js"></script>
+<script src="vendor/closebrackets.js"></script>
+<script src="vendor/matchbrackets.js"></script>
+<script>
+"use strict";
+
+/* ============ 常量 ============ */
+const KEYWORDS = [
+  "public","private","protected","internal","static","readonly","const","sealed","abstract",
+  "virtual","override","partial","class","struct","interface","enum","namespace","using",
+  "void","int","float","double","bool","string","char","long","short","byte","object","var",
+  "decimal","uint","ulong","sbyte","ushort",
+  "new","return","if","else","for","foreach","while","do","switch","case","default","break",
+  "continue","try","catch","finally","throw","this","base","null","true","false","in","out","ref",
+  "get","set","value","yield","await","async","is","as","typeof","sizeof","operator","where","lock"
+];
+
+const APP_VERSION = "2.6";
+
+// 白名单：这些类型在候选里排最前，避免被 ParticleCollisionEvent 之类的冷门类型挤掉
+const COMMON_TYPES = [
+  "MonoBehaviour","GameObject","Transform","Vector3","Vector2","Vector4","Quaternion",
+  "Mathf","Debug","Time","Input","Random","Application","Screen","Camera",
+  "Rigidbody","Rigidbody2D","Collider","Collider2D","Physics","Physics2D",
+  "Animator","Animation","AudioSource","AudioClip","ParticleSystem",
+  "SpriteRenderer","Sprite","ScriptableObject","WaitForSeconds","Coroutine",
+  "Space","KeyCode","LayerMask","Ray","RaycastHit","Bounds","Color",
+  "Console","String","Math","StringBuilder","List","Dictionary","Array","Convert",
+  "IEnumerator","IEnumerable","IDisposable","Queue","Stack","HashSet",
+  "DateTime","TimeSpan","Exception","Action","Func","KeyValuePair","Object","object"
+];
+const COMMON_SET = new Set(COMMON_TYPES);
+
+// 全大写缩写默认沉底（PIX / PCMReaderCallback），这几个例外要正常显示
+const ACRO = new Set(["GUI", "GUIContent", "GUIStyle", "GUILayout", "Gizmos"]);
+
+const STARTERS = {
+  csharp: `using System;
+
+class Program
+{
+    static void Main()
+    {
+        // 试试：打 "pu" 看补全，打 "Console." 看成员列表
+        // 鼠标停在 WriteLine 上（或点一下）看签名
+        Console.WriteLine("Hello, C#!");
+
+        for (int i = 1; i <= 5; i++)
+        {
+            Console.WriteLine(string.Format("{0} 的平方是 {1}", i, i * i));
+        }
+    }
+}
+`,
+  unity: `using UnityEngine;
+
+public class PlayerController : MonoBehaviour
+{
+    public float speed = 5f;
+    public Transform target;
+
+    void Start()
+    {
+        // 试试：打 "Get" 出 GetComponent，打 "transform." 看成员
+        Debug.Log("准备好了");
+    }
+
+    void Update()
+    {
+        float dt = Time.deltaTime;
+        transform.Translate(Vector3.forward * speed * dt);
+
+        // 打 "Sta" → StartCoroutine（来自基类 MonoBehaviour）
+    }
+}
+`
+};
+
+const SAMPLES = {
+  "Hello / 变量": `using System;
+
+class Program
+{
+    static void Main()
+    {
+        string name = "米彩";
+        int level = 3;
+        float hp = 87.5f;
+        bool alive = true;
+
+        Console.WriteLine("名字：" + name);
+        Console.WriteLine("等级：" + level);
+        Console.WriteLine("血量：" + hp);
+        Console.WriteLine("存活：" + alive);
+    }
+}
+`,
+  "循环 / 数组": `using System;
+
+class Program
+{
+    static void Main()
+    {
+        int[] scores = { 88, 72, 95, 61, 79 };
+
+        int sum = 0;
+        int max = scores[0];
+
+        for (int i = 0; i < scores.Length; i++)
+        {
+            sum += scores[i];
+            if (scores[i] > max) max = scores[i];
+        }
+
+        Console.WriteLine("总分：" + sum);
+        Console.WriteLine("平均：" + (sum / (float)scores.Length));
+        Console.WriteLine("最高：" + max);
+    }
+}
+`,
+  "类 / 属性": `using System;
+
+class Enemy
+{
+    public string Name;
+    public int Hp;
+    public int MaxHp;
+
+    public Enemy(string name, int hp)
+    {
+        Name = name;
+        Hp = hp;
+        MaxHp = hp;
+    }
+
+    public bool IsDead { get { return Hp <= 0; } }
+
+    public void TakeDamage(int amount)
+    {
+        Hp -= amount;
+        if (Hp < 0) Hp = 0;
+        Console.WriteLine(Name + " 受到 " + amount + " 伤害，剩余 " + Hp);
+    }
+}
+
+class Program
+{
+    static void Main()
+    {
+        Enemy e = new Enemy("史莱姆", 50);
+        e.TakeDamage(20);
+        e.TakeDamage(40);
+        Console.WriteLine("死了吗：" + e.IsDead);
+    }
+}
+`,
+  "List / 集合": `using System;
+using System.Collections.Generic;
+
+class Program
+{
+    static void Main()
+    {
+        List<string> names = new List<string>();
+        names.Add("剑士");
+        names.Add("法师");
+        names.Add("弓手");
+
+        Console.WriteLine("人数：" + names.Count);
+
+        foreach (string n in names)
+        {
+            Console.WriteLine("- " + n);
+        }
+
+        names.Remove("法师");
+        Console.WriteLine("移除法师后：" + names.Count);
+    }
+}
+`,
+  "字符串处理": `using System;
+using System.Text;
+
+class Program
+{
+    static void Main()
+    {
+        string raw = "  unity,cs,练习  ";
+
+        string s = raw.Trim();
+        Console.WriteLine("[" + s + "]");
+        Console.WriteLine("长度：" + s.Length);
+        Console.WriteLine("大写：" + s.ToUpper());
+
+        string[] parts = s.Split(',');
+        foreach (string p in parts)
+        {
+            Console.WriteLine("段：" + p);
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 3; i++)
+        {
+            sb.Append("第" + i + "项 ");
+        }
+        Console.WriteLine(sb.ToString());
+    }
+}
+`,
+  "Unity 视角（不能在这里跑）": `// 下面是 Unity 脚本，本练习器只能编译纯 C#，
+// 引用 UnityEngine 会报错。但补全和签名照常可用。
+using System;
+
+class PlayerController
+{
+    public float speed = 5f;
+    public float rotateSpeed = 120f;
+
+    public void Update()
+    {
+        // 打 "Time." 能看到 deltaTime 的签名
+        float dt = Time.deltaTime;
+    }
+}
+`
+};
+
+/* ============ 状态 ============ */
+let SYM = {};                 // 扁平符号表： "Debug.Log" -> [{s,d,k}]
+let TYPES = [];               // 类型名数组
+let TYPE_SET = new Set();     // 类型名集合
+let MEMBERS = {};             // "Debug" -> Set("Log","LogWarning",...)
+let VARS = {};                // 当前文件的局部变量表： "sb" -> "StringBuilder"
+let BASE_TYPES = [];          // 当前文件里 class X : Base 的基类
+let MEMBER_POOL = [];         // 去重后的全部成员名，用于"直接打成员名"的补全
+let ready = false;
+
+let MODE = "csharp";          // "csharp" = 只用基础类库；"unity" = 加上 UnityEngine API
+let BCL_SET = new Set();      // 基础类库的类型名（来自 symbols.json 的 bcl 字段）
+let NSMAP = {};               // 类型短名 -> 命名空间（自动补 using 用）
+let varsDirty = true;         // 内容变过，变量表需要重算
+
+/* APK 模式下页面是从 assets 加载的（虚拟域名 miccode.local），
+   同域里没有 Python 服务，所以 API 要走绝对地址；
+   普通网页模式下服务就在同源，用相对路径即可。 */
+const API_BASE = (location.hostname === "miccode.local") ? "http://127.0.0.1:8080" : "";
+let SERVER_OK = false;        // 编译服务是否在线（不影响编辑和补全）
+
+const $ = (id) => document.getElementById(id);
+
+/* ============ 工具 ============ */
+function shortType(t) {
+  const i = t.lastIndexOf(".");
+  return i < 0 ? t : t.slice(i + 1);
+}
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function debounce(fn, ms) {
+  let t = null;
+  return function () {
+    clearTimeout(t);
+    const args = arguments, self = this;
+    t = setTimeout(() => fn.apply(self, args), ms);
+  };
+}
+
+/* ============ 符号表加载 ============ */
+async function loadSymbols() {
+  try {
+    // 带上版本号做缓存穿透：符号表更新后，浏览器不会还拿旧文件（否则最长 1 小时）
+    const res = await fetch("symbols.json?v=" + APP_VERSION);
+    const data = await res.json();
+    SYM = data.s || {};
+    TYPES = data.t || [];
+    TYPE_SET = new Set(TYPES);
+    // 泛型显示名（如 Queue<T>）再补一个裸名 Queue：
+    // 代码里写的是 Queue<int>，扫描出来的 token 是 Queue，两边必须对得上
+    for (const t of TYPES) {
+      const i = t.indexOf("<");
+      if (i > 0) TYPE_SET.add(t.slice(0, i));
+    }
+    BCL_SET = new Set(data.bcl || []);
+    NSMAP = data.ns || {};
+
+    for (const key in SYM) {
+      const i = key.lastIndexOf(".");
+      if (i <= 0) continue;
+      const owner = key.slice(0, i), mem = key.slice(i + 1);
+      (MEMBERS[owner] || (MEMBERS[owner] = new Set())).add(mem);
+    }
+
+    buildMemberPool();
+    ready = true;
+    refreshBadge();
+    scanVars(cm.getValue());
+  } catch (e) {
+    $("badge").textContent = "符号表加载失败：" + e.message;
+    $("badge").style.color = "#c06060";
+  }
+}
+
+/* ============ 运行环境 ============ */
+let ENV = { compiler: "", csharp: 0 };
+
+let envTry = 0;
+
+async function loadEnv() {
+  try {
+    const r = await fetch(API_BASE + "/api/info", { cache: "no-store" });
+    if (!r.ok) throw new Error("status " + r.status);
+    ENV = await r.json();
+    SERVER_OK = !!(ENV.compiler && ENV.compiler !== "none");
+    envTry = 0;
+  } catch (e) {
+    ENV = { compiler: "none", csharp: 0 };
+    SERVER_OK = false;
+    // 服务可能在 Termux 里刚启动，前 1 分钟每 5 秒重试一次
+    envTry++;
+    if (envTry <= 12) setTimeout(loadEnv, 5000);
+  }
+  refreshBadge();
+}
+
+function refreshBadge() {
+  const parts = [];
+  parts.push(MODE === "unity" ? "Unity" : "C# 基础库");
+  const n = MODE === "unity" ? TYPES.length : BCL_SET.size;
+  if (n) parts.push(n + " 类型");
+
+  if (!SERVER_OK) parts.push("离线 · 只能编辑");
+  else if (ENV.compiler === "none") parts.push("无编译器");
+  else parts.push(ENV.compiler + (ENV.csharp ? " · C#" + ENV.csharp : ""));
+
+  $("badge").textContent = parts.join(" · ");
+  $("badge").title = "MiCCode v" + APP_VERSION;
+  $("badge").style.color = !SERVER_OK
+    ? "#c08a2e"
+    : (ENV.compiler === "none" ? "#c06060" : "#5c9b76");
+}
+
+/* ============ 成员名池 ============ */
+function buildMemberPool() {
+  const map = new Map();
+  for (const key in SYM) {
+    const i = key.lastIndexOf(".");
+    if (i <= 0) continue;
+    const owner = key.slice(0, i), mem = key.slice(i + 1);
+    if (!/^[A-Za-z]/.test(mem)) continue;
+    const prev = map.get(mem);
+    const isCommon = COMMON_SET.has(owner);
+    if (!prev) map.set(mem, { name: mem, owner: owner, owners: [owner], common: isCommon });
+    else {
+      prev.owners.push(owner);
+      if (isCommon && !prev.common) { prev.common = true; prev.owner = owner; }
+    }
+  }
+  // 常用类型的成员排前面，其余按字母序
+  MEMBER_POOL = [...map.values()].sort(
+    (a, b) => (b.common - a.common) || a.name.localeCompare(b.name)
+  );
+}
+
+/* ============ 局部变量表（L2 的关键）============ */
+function scanVars(code) {
+  const vars = {};
+  let m;
+
+  // 先剥掉泛型参数：Queue<int> q = new Queue<int>() → Queue q = new Queue()
+  // 否则声明里的 <int> 会把 "类型名 变量名" 的正则全部挡住，泛型类型永远推不出
+  const flat = code.replace(/<[^<>(){},\n]*>/g, "");
+
+  // var x = new Foo(...)
+  const r1 = /\bvar\s+([A-Za-z_]\w*)\s*=\s*new\s+([A-Za-z_][\w.]*)/g;
+  while ((m = r1.exec(flat))) vars[m[1]] = shortType(m[2]);
+
+  // Foo x = ... / Foo x;
+  const r2 = /\b([A-Za-z_][\w.]*)\s+([a-z_]\w*)\s*(?:=|;|\))/g;
+  while ((m = r2.exec(flat))) {
+    const t = shortType(m[1]);
+    if (t === "var" || t === "return" || t === "new") continue;
+    if (TYPE_SET.has(t)) vars[m[2]] = t;
+  }
+
+  // class X : MonoBehaviour —— 记下基类，让 StartCoroutine / transform / gameObject 能直接补全
+  BASE_TYPES = [];
+  const rBase = /\bclass\s+\w+\s*:\s*([A-Za-z_][\w.]*)/g;
+  while ((m = rBase.exec(code))) {
+    const t = shortType(m[1]);
+    if (TYPE_SET.has(t)) BASE_TYPES.push(t);
+  }
+
+  VARS = vars;
+}
+
+function resolveType(name) {
+  if (TYPE_SET.has(name)) return name;
+  if (VARS[name]) return VARS[name];
+  return null;
+}
+
+// C# 模式下把 UnityEngine 的东西藏起来；用户自己写的类（不在符号表里）照常放行
+function isUnityType(t) {
+  return MODE === "csharp" && TYPE_SET.has(t) && !BCL_SET.has(t);
+}
+
+// 补全前确保变量表是最新的（change 有 400ms 防抖，直接调 showHint 会用到旧数据）
+function ensureVars(cm) {
+  if (!varsDirty) return;
+  const code = cm.getValue();
+  if (code.length < 400000) scanVars(code);
+  varsDirty = false;
+}
+
+/* ============ 补全 ============ */
+function csharpHint(cm) {
+  if (!ready) return null;
+  ensureVars(cm);
+
+  const cur = cm.getCursor();
+  const before = cm.getLine(cur.line).slice(0, cur.ch);
+
+  // 情况 A：owner.prefix —— 成员补全
+  const mA = /([A-Za-z_]\w*)\.(\w*)$/.exec(before);
+  if (mA) {
+    const owner = mA[1], prefix = mA[2];
+    const type = resolveType(owner);
+    if (!type) return null;                       // 猜不到类型就不弹，避免噪声
+    if (isUnityType(type)) return null;
+    const pool = MEMBERS[type];
+    if (!pool) return null;
+
+    const lp = prefix.toLowerCase();
+    const list = [];
+    pool.forEach((mem) => {
+      if (lp && !mem.toLowerCase().startsWith(lp)) return;
+      const hits = SYM[type + "." + mem] || [];
+      const sig = hits.length && hits[0].s ? hits[0].s : "";
+      list.push({ text: mem, displayText: mem + sig, className: "hint-member" });
+    });
+    if (!list.length) return null;
+    return { list: list, from: CodeMirror.Pos(cur.line, cur.ch - prefix.length), to: cur };
+  }
+
+  // 情况 B：纯前缀 —— 关键字 + 常用类型 + 局部变量 + 基类成员 + 其他类型 + 成员名
+  const mB = /([A-Za-z_]\w*)$/.exec(before);
+  if (!mB) return null;
+  const p = mB[1];
+  if (p.length < 1) return null;
+  const lp = p.toLowerCase();
+
+  const list = [];
+  const seen = new Set();
+  const push = (text, cls, displayText, ns) => {
+    if (seen.has(text)) return;
+    seen.add(text);
+    const item = { text: text, className: cls };
+    // 显示 Queue<T> 但只插入 Queue —— 泛型参数让用户自己写
+    if (displayText && displayText !== text) item.displayText = displayText;
+    // 选中时要补 using 的候选，挂自定义应用函数
+    if (ns) item.hint = function (c, data, comp) {
+      c.replaceRange(comp.text, data.from, data.to);
+      if (ensureUsing(ns)) toast("已自动加 using " + ns);
+    };
+    list.push(item);
+  };
+
+  // 1) 关键字优先
+  for (const k of KEYWORDS) {
+    if (k.toLowerCase().startsWith(lp)) push(k, "hint-kw");
+  }
+
+  // 2) 常用类型（白名单，按使用频率排）
+  for (const t of COMMON_TYPES) {
+    if (isUnityType(t)) continue;
+    if (t.toLowerCase().startsWith(lp)) push(t, "hint-type", null, NSMAP[t]);
+  }
+  // 3) 当前文件的局部变量
+  for (const v in VARS) {
+    if (v.toLowerCase().startsWith(lp)) push(v, "hint-var");
+  }
+
+  // 4) 当前类的基类成员 —— 让 StartCoroutine / transform / gameObject 能直接打出来
+  for (const bt of BASE_TYPES) {
+    if (isUnityType(bt)) continue;
+    const pool = MEMBERS[bt];
+    if (!pool) continue;
+    pool.forEach((mem) => {
+      if (mem.toLowerCase().startsWith(lp)) push(mem, "hint-member", null, NSMAP[bt]);
+    });
+  }
+
+  // 5) 其他类型（冷门缩写沉底）
+  const tail = [];
+  for (const t of TYPES) {
+    if (!t.toLowerCase().startsWith(lp)) continue;
+    if (COMMON_SET.has(t) || isUnityType(t)) continue;                        // 第 2 步已入列
+    const base = t.indexOf("<") > 0 ? t.slice(0, t.indexOf("<")) : t;
+    if (/^[A-Z]{3,}/.test(t) && !ACRO.has(t)) tail.push(t); // PIX / PCMxxx 这类全大写缩写沉底
+    else push(base, "hint-type", t, NSMAP[base] || NSMAP[t]);
+  }
+
+  // 6) 全局成员名（至少打 2 个字符才开，否则噪声太大）
+  if (p.length >= 2) {
+    for (const e of MEMBER_POOL) {
+      if (isUnityType(e.owner)) continue;
+      if (e.name.toLowerCase().startsWith(lp)) push(e.name, "hint-member", null, NSMAP[e.owner]);
+    }
+  }
+
+  for (const t of tail) push(t, "hint-type");
+
+  if (!list.length) return null;
+  // 短前缀时结果可能几百条，截断保流畅
+  return {
+    list: list.slice(0, 300),
+    from: CodeMirror.Pos(cur.line, cur.ch - p.length),
+    to: cur
+  };
+}
+
+/* ============ 签名查询 ============ */
+function lookupAt(cm, line, ch) {
+  const text = cm.getLine(line);
+  if (!text) return null;
+
+  let start = ch, end = ch;
+  while (start > 0 && /[\w]/.test(text[start - 1])) start--;
+  while (end < text.length && /[\w]/.test(text[end])) end++;
+  const word = text.slice(start, end);
+  if (!word) return null;
+
+  // 前面紧邻 "." → 取 owner
+  let owner = null;
+  if (start > 0 && text[start - 1] === ".") {
+    let s2 = start - 1;
+    while (s2 > 0 && /\w/.test(text[s2 - 1])) s2--;
+    owner = text.slice(s2, start - 1);
+  }
+
+  if (owner) {
+    if (owner === "this") return { title: "this." + word, hits: SYM[word] || null, owner: null };
+    const type = resolveType(owner);
+    if (!type) return { title: owner + "." + word, hits: null, owner: "unknown", ownerName: owner };
+    return { title: type + "." + word, hits: SYM[type + "." + word] || null, owner: type };
+  }
+
+  // 裸静态名兜底：Destroy / Update / Start 不带 owner 写时去成员池找归属。
+  // 必须放在类型条目之前 —— Update/Start 这些名字同时是引擎内部阶段枚举的
+  // 类型名，但用户悬停时想要的肯定是 MonoBehaviour 生命周期的解释
+  const hit = MEMBER_POOL.find((e) => e.name === word);
+  if (hit) {
+    let mOwner = hit.owner;
+    if (hit.owners && hit.owners.indexOf("MonoBehaviour") >= 0) mOwner = "MonoBehaviour";
+    const hh = SYM[mOwner + "." + word];
+    if (hh) {
+      return { title: mOwner + "." + word, hits: hh, owner: mOwner };
+    }
+  }
+
+  const hits = SYM[word];
+  if (!hits) {
+    // 类型本身（IEnumerator / Queue 这种）：成员挂在 word.xxx 下，
+    // 这里合成一行说明，悬停才不会"什么都没有"
+    if (TYPE_SET.has(word) && MEMBERS[word]) {
+      const mems = Array.from(MEMBERS[word]).slice(0, 6).join(" / ");
+      return {
+        title: word,
+        isType: true,
+        hits: [{ k: "type", s: "", d: "类型 · 成员: " + mems + (MEMBERS[word].size > 6 ? " …" : "") }]
+      };
+    }
+    return null;
+  }
+  const isType = hits.some((e) => e.k === "type");
+  return { title: word, hits: hits, isType: isType };
+}
+
+/* ============ 浮窗渲染 ============ */
+let tipTimer = null;
+
+function renderTipBox(info) {
+  let html = '<div class="t">' + esc(info.title) + "</div>";
+
+  if (info.owner === "unknown") {
+    html += '<div class="warn">推断不出 ' + esc(info.ownerName) +
+            " 的类型。先写 <code>Foo " + esc(info.ownerName) + " = ...</code> 或 <code>var " +
+            esc(info.ownerName) + " = new Foo(...)</code></div>";
+    return html;
+  }
+  if (!info.hits) {
+    html += '<div class="warn">符号表里没有这个名字</div>';
+    return html;
+  }
+
+  const shown = info.hits.slice(0, 8);
+  let lastDoc = null;
+  for (const e of shown) {
+    const sig = e.s ? info.title + e.s : info.title;
+    // 多个重载常常共用同一句说明，重复显示只是噪音
+    const showDoc = e.d && e.d !== lastDoc;
+    html += '<div class="r"><code>' + esc(sig) + "</code>" +
+            (showDoc ? '<div class="d">' + esc(e.d) + "</div>" : "") + "</div>";
+    if (e.d) lastDoc = e.d;
+  }
+  if (info.hits.length > shown.length) {
+    html += '<div class="d">… 还有 ' + (info.hits.length - shown.length) + " 个重载</div>";
+  }
+  return html;
+}
+
+function showTip(x, y, info) {
+  const tip = $("tip");
+  tip.innerHTML = renderTipBox(info);
+  tip.style.display = "block";
+
+  // 先放到视口内测尺寸，再定位
+  const pad = 14;
+  const rect = tip.getBoundingClientRect();
+  let left = x + pad, top = y + pad;
+  if (left + rect.width > window.innerWidth - 8) left = Math.max(8, x - rect.width - pad);
+  if (top + rect.height > window.innerHeight - 8) top = Math.max(8, y - rect.height - pad);
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+}
+
+function hideTip() {
+  $("tip").style.display = "none";
+}
+
+/* ============ 底部签名栏 ============ */
+const updateSigbar = debounce(function () {
+  const bar = $("sigText");
+  const cur = cm.getCursor();
+  const info = lookupAt(cm, cur.line, cur.ch);
+  if (!info) {
+    bar.innerHTML = '<span class="muted">光标停在标识符上，这里显示签名 · MiCCode v'
+                  + APP_VERSION + "</span>";
+    return;
+  }
+  if (info.owner === "unknown") {
+    bar.innerHTML = '<span class="muted">推断不出 ' + esc(info.ownerName) + " 的类型</span>";
+    return;
+  }
+  if (!info.hits) {
+    bar.innerHTML = '<span class="muted">符号表里没有 ' + esc(info.title) + "</span>";
+    return;
+  }
+  const first = info.hits[0];
+  const sig = first.s ? info.title + first.s : info.title;
+  const more = info.hits.length > 1 ? " (+" + (info.hits.length - 1) + " 重载)" : "";
+  bar.innerHTML = '<span class="sig">' + esc(sig) + "</span>" +
+                  '<span class="doc">' + esc(first.d || "") + esc(more) + "</span>";
+}, 120);
+
+/* ============ 编辑器 ============ */
+const cm = CodeMirror.fromTextArea($("code"), {
+  value: STARTERS.csharp,
+  mode: "text/x-csharp",
+  theme: "material-darker",
+  lineNumbers: true,
+  lineWrapping: true,
+  indentUnit: 4,
+  tabSize: 4,
+  smartIndent: true,
+  matchBrackets: true,
+  autoCloseBrackets: true,
+  styleActiveLine: true,
+  hintOptions: { hint: csharpHint, completeSingle: false },
+  extraKeys: {
+    "Tab": function (c) {
+      if (c.somethingSelected()) c.indentSelection("add");
+      else c.replaceSelection("    ", "end");
+    },
+    "Shift-Tab": function (c) { c.indentSelection("subtract"); },
+    "Ctrl-Space": "autocomplete",
+    "Cmd-Space": "autocomplete"
+  }
+});
+
+// 首次进入填内容
+const saved = localStorage.getItem("csharp-pad-code");
+cm.setValue(saved || STARTERS.csharp);
+
+/* 输入时自动弹补全。
+   不用 inputRead —— 它要求 change.origin === "+input"，
+   而安卓输入法（尤其中文键盘的英文模式）常走 composition 通道，origin 不是它，
+   补全就永远不弹。改成直接看 change 里真实插入了什么字符，兼容性更好。 */
+cm.on("change", function (c, change) {
+  if (!ready) return;
+  if (change.origin === "setValue" || change.origin === "+delete") return;
+  const inserted = (change.text || []).join("");
+  if (!/[A-Za-z_.]$/.test(inserted)) return;
+  setTimeout(function () {
+    if (!c.state.completionActive) {
+      c.showHint({ hint: csharpHint, completeSingle: false });
+    }
+  }, 60);
+});
+
+/* 内容变化 → 重建变量表 + 存草稿 */
+/* 立即落盘：草稿 + 当前文件，绕开 400ms 防抖。
+   退出、切后台、崩溃前都会被调用，尽量把丢失窗口压到 0 */
+function flushNow() {
+  const code = cm.getValue();
+  try { localStorage.setItem("csharp-pad-code", code); } catch (e) {}
+  if (CUR_FILE) {
+    const f = FILES.find((x) => x.name === CUR_FILE);
+    if (f) {
+      f.code = code;
+      f.ts = Date.now();
+      try { localStorage.setItem("miccode-files", JSON.stringify(FILES)); } catch (e) {}
+    }
+  }
+  scanVars(code);
+  varsDirty = false;
+  dirty = false;
+}
+
+const onCodeChange = debounce(flushNow, 400);
+
+cm.on("change", function () {
+  varsDirty = true;
+  dirty = true;
+  onCodeChange();
+});
+
+/* 给安卓外壳用的三个钩子 */
+window.__flush = flushNow;                 // 切后台时静默落盘
+window.__exitState = function () {         // 返回键：先落盘，再报告状态
+  flushNow();
+  if (!cm.getValue().trim()) return "empty";
+  return CUR_FILE ? "named" : "unnamed";
+};
+window.__openFilePanel = function () { openFilePanel(true); };
+
+cm.on("cursorActivity", updateSigbar);
+
+/* 手动补全：软键盘上没有 Ctrl+Space，留个按钮兜底。
+   用 pointerdown + preventDefault，这样编辑器不会失焦、光标不跑。 */
+$("hintBtn").addEventListener("pointerdown", function (e) {
+  e.preventDefault();
+  cm.focus();
+  cm.showHint({ hint: csharpHint, completeSingle: false });
+});
+
+/* 鼠标悬停 */
+cm.getWrapperElement().addEventListener("mousemove", function (e) {
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(function () {
+    const pos = cm.coordsChar({ left: e.clientX, top: e.clientY }, "window");
+    const info = lookupAt(cm, pos.line, pos.ch);
+    if (!info) { hideTip(); return; }
+    showTip(e.clientX, e.clientY, info);
+  }, 160);
+});
+cm.getWrapperElement().addEventListener("mouseleave", function () {
+  clearTimeout(tipTimer);
+  hideTip();
+});
+
+/* 触摸长按（无鼠标时的降级） */
+let touchTimer = null;
+cm.getWrapperElement().addEventListener("touchstart", function (e) {
+  if (e.touches.length !== 1) return;
+  const t = e.touches[0];
+  touchTimer = setTimeout(function () {
+    const pos = cm.coordsChar({ left: t.clientX, top: t.clientY }, "window");
+    const info = lookupAt(cm, pos.line, pos.ch);
+    if (info) showTip(t.clientX, t.clientY, info);
+  }, 450);
+}, { passive: true });
+["touchend", "touchmove", "touchcancel"].forEach(function (ev) {
+  cm.getWrapperElement().addEventListener(ev, function () {
+    clearTimeout(touchTimer);
+    if (ev !== "touchmove") setTimeout(hideTip, 2200);
+  }, { passive: true });
+});
+
+/* ============ 运行 ============ */
+async function doRun() {
+  const btn = $("run"), out = $("output"), info = $("runInfo");
+  const code = cm.getValue();
+  if (!code.trim()) return;
+
+  if (MODE === "unity") {
+    out.textContent =
+      "Unity 脚本无法在这里运行。\n\n" +
+      "原因：编译需要 UnityEngine.dll，运行需要 Unity 的运行时环境，两样都不在浏览器里。\n\n" +
+      "这个模式下能做的是：补全、悬停看签名、查 API。写完拷回 Unity 编辑器运行即可。\n\n" +
+      "想跑纯 C# 练习，把左上角切回「C# 脚本」。";
+    out.className = "";
+    info.textContent = "Unity 模式 · 仅编辑";
+    info.className = "";
+    return;
+  }
+
+  if (!SERVER_OK) {
+    out.textContent =
+      "现在没有连上编译服务，只能编辑。\n\n" +
+      "要让它能运行，二选一：\n" +
+      "  · 平板上装 Termux，在其中执行 python server.py\n" +
+      "  · PC 上跑 python server.py --host 0.0.0.0，平板浏览器连 PC\n\n" +
+      "补全、悬停签名都不依赖服务，现在就能用。";
+    out.className = "";
+    info.textContent = "离线 · 只能编辑";
+    info.className = "bad";
+    return;
+  }
+
+  btn.disabled = true;
+  out.textContent = "编译中…";
+  info.textContent = "";
+  const t0 = performance.now();
+
+  try {
+    const r = await fetch(API_BASE + "/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: code })
+    });
+    const d = await r.json();
+    const ms = Math.round(performance.now() - t0);
+
+    if (d.ok) {
+      out.textContent = d.out || "（没有输出）";
+      out.className = "";
+      info.textContent = "成功 · " + ms + "ms";
+      info.className = "ok";
+    } else {
+      out.textContent = (d.out ? d.out + "\n" : "") + (d.err || "编译失败，但没有错误信息");
+      out.className = "bad";
+      info.textContent = "失败 · " + ms + "ms";
+      info.className = "bad";
+    }
+  } catch (e) {
+    out.textContent = "连不上本地服务。\n\n" +
+      "确认：\n" +
+      "1) 终端里 python server.py 还在跑\n" +
+      "2) 地址是 http://127.0.0.1:8080\n\n" +
+      "原始错误：" + e.message;
+    out.className = "bad";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$("run").addEventListener("click", doRun);
+$("clearOut").addEventListener("click", function () {
+  $("output").textContent = "";
+  $("runInfo").textContent = "";
+});
+
+/* ============ 模式切换：C# 基础库 / Unity API ============ */
+$("mode").addEventListener("change", function () {
+  const next = this.value;
+  const prevStarter = STARTERS[MODE];
+  // 只有内容还是原模板时才自动换，避免吞掉正在写的东西
+  if (cm.getValue().trim() === prevStarter.trim()) {
+    cm.setValue(STARTERS[next]);
+  }
+  MODE = next;
+  varsDirty = true;
+  ensureVars(cm);
+  refreshBadge();
+  updateSigbar();
+  cm.focus();
+});
+
+/* ============ 分屏 / DeepSeek 侧栏 ============ */
+/* 常用 AI 应用预设。包名可能随版本变化，选错了可以手动填 */
+const APP_PRESETS = [
+  { pkg: "com.deepseek.chat",     name: "DeepSeek", badge: "D",  color: "#4D6BFE" },
+  { pkg: "com.larus.nova",        name: "豆包",     badge: "豆", color: "#1E6FFF" },
+  { pkg: "com.moonshot.kimichat", name: "Kimi",     badge: "K",  color: "#2B2B45" },
+  { pkg: "com.openai.chatgpt",    name: "ChatGPT",  badge: "G",  color: "#10A37F" },
+  { pkg: "com.anthropic.claude",  name: "Claude",   badge: "C",  color: "#D97757" },
+  { pkg: "com.baidu.newapp",      name: "文心一言", badge: "文", color: "#2932E1" },
+  { pkg: "com.aliyun.tongyi",     name: "通义",     badge: "通", color: "#615CED" }
+];
+
+// 自定义应用按包名散列出一个稳定配色，比统一灰块像一个真图标
+const ICON_PALETTE = ["#4D6BFE", "#10A37F", "#D97757", "#615CED", "#E0457B", "#2FA36B", "#C08A2E", "#3A7BD5"];
+
+function colorFor(pkg) {
+  let h = 0;
+  for (let i = 0; i < pkg.length; i++) h = (h * 31 + pkg.charCodeAt(i)) >>> 0;
+  return ICON_PALETTE[h % ICON_PALETTE.length];
+}
+
+function presetFor(pkg) {
+  for (let i = 0; i < APP_PRESETS.length; i++) {
+    if (APP_PRESETS[i].pkg === pkg) return APP_PRESETS[i];
+  }
+  return null;
+}
+
+/* 图标渲染，优先级：用户自传 > 系统里的真实图标 > 品牌色 + 字母 */
+function appIconHTML(pkg, letter, color, icon) {
+  const custom = localStorage.getItem("miccode-icon-" + pkg);
+  if (custom) return '<img src="' + custom + '" alt="">';
+  if (icon) return '<img src="' + icon + '" alt="">';
+  const p = presetFor(pkg);
+  const bg = color || (p && p.color) || colorFor(pkg);
+  const ch = letter || (p && p.badge) || (pkg.split(".").pop() || "?").slice(0, 1).toUpperCase();
+  return '<span style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;' +
+         "background:" + bg + ';color:#fff;font-size:12.5px;font-weight:600">' + esc(ch) + "</span>";
+}
+
+let SPLIT_PKG = localStorage.getItem("miccode-split-pkg") || "";
+let SPLIT_NAME = localStorage.getItem("miccode-split-name") || "";
+let dsLongPressed = false;
+let dsPressTimer = null;
+let pressX = 0, pressY = 0;
+
+/* 自动 using：选中的类型属于某个命名空间而文件头没引，就补一条（VS Code 同款体验） */
+function ensureUsing(ns) {
+  if (!ns) return false;
+  const lines = cm.getValue().split("\n");
+  for (const l of lines) {
+    if (l.trim() === "using " + ns + ";") return false;
+  }
+  // 插到最后一条 using 的下面；一条都没有就放文件最顶上
+  let last = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*using\s+[\w.]+\s*;/.test(lines[i])) last = i;
+  }
+  if (last >= 0) cm.replaceRange("using " + ns + ";\n", { line: last + 1, ch: 0 }, null, "+using");
+  else cm.replaceRange("using " + ns + ";\n", { line: 0, ch: 0 }, null, "+using");
+  return true;
+}
+
+function toast(msg, warn) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = warn ? "warn" : "";
+  t.style.display = "block";
+  clearTimeout(t._t);
+  t._t = setTimeout(function () { t.style.display = "none"; }, 3400);
+}
+
+function openDsPanel() {
+  const panel = $("dsPanel"), frame = $("dsFrame");
+  if (!panel || !frame) return;      // 侧栏已下线，防御性返回
+  panel.classList.add("open");
+  if (!frame.dataset.loaded) {
+    frame.src = "https://chat.deepseek.com/";
+    frame.dataset.loaded = "1";
+    // X-Frame-Options 拦截不会触发 onerror，只能事后探一下是不是空文档
+    setTimeout(function () {
+      try {
+        const d = frame.contentDocument;
+        if (d && d.body && d.body.childElementCount === 0) {
+          $("dsHint").textContent = "这个站点拒绝被嵌入。点右上「在新标签打开」，再用系统分屏。";
+        }
+      } catch (e) { /* 跨域访问抛错恰恰说明加载正常 */ }
+    }, 3000);
+  }
+}
+
+function refreshSplitBtn() {
+  $("dsBtnText").textContent = SPLIT_PKG ? (SPLIT_NAME || SPLIT_PKG) : "选搭子";
+  const box = $("dsBtnIcon");
+  if (SPLIT_PKG) {
+    box.innerHTML = appIconHTML(SPLIT_PKG, null, null);
+  } else {
+    box.innerHTML =
+      '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">' +
+      '<rect x="1" y="3" width="10" height="18" rx="2.5" fill="#4D6BFE"/>' +
+      '<rect x="13" y="3" width="10" height="18" rx="2.5" fill="#7ea2ff" opacity="0.5"/></svg>';
+  }
+}
+
+/* 给某个应用设一张自定义图标，压到 64×64 存进 localStorage */
+function pickIconFor(pkg) {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = "image/*";
+  inp.addEventListener("change", function () {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = function () {
+      const img = new Image();
+      img.onload = function () {
+        const c = document.createElement("canvas");
+        c.width = c.height = 64;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0, 64, 64);
+        try {
+          localStorage.setItem("miccode-icon-" + pkg, c.toDataURL("image/png"));
+        } catch (e) {
+          toast("图片太大，存不下", true);
+          return;
+        }
+        toast("图标已更新");
+        openPicker();
+        refreshSplitBtn();
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(f);
+  });
+  inp.click();
+}
+
+/* 搭子列表：优先用系统里的真实应用（APK 原生通道），读不到才退回预设 */
+let PICK_ITEMS = [];
+let pickLoaded = false;
+let pickFromDevice = false;
+
+/* 把原生回传的应用列表接过来渲染。迟到的结果也能用，不必重开面板 */
+function useNativeApps(list) {
+  pickFromDevice = true;
+  const items = list.map(function (a) {
+    return {
+      pkg: a.pkg,
+      name: a.label || a.pkg,
+      icon: a.icon || null,
+      sys: !!a.sys,
+      fromDevice: true
+    };
+  });
+  items.sort(function (a, b) {
+    if (a.pkg === SPLIT_PKG) return -1;
+    if (b.pkg === SPLIT_PKG) return 1;
+    return 0;
+  });
+  PICK_ITEMS = items;
+  pickLoaded = true;
+  if ($("pickWrap").classList.contains("open")) renderPickList($("pickFilter").value);
+}
+
+/* 打开搭子选择器 */
+async function openPicker() {
+  $("pickWrap").classList.add("open");
+  $("pickFilter").value = "";
+
+  if (pickLoaded) { renderPickList(""); return; }
+
+  $("pickList").innerHTML = '<div class="pick-empty">读取已安装应用…</div>';
+  pickFromDevice = false;
+
+  // ① 原生通道：APK 用 PackageManager 拿到全部桌面应用和真实图标。
+  //    要逐个解码上百个图标，慢设备可能好几秒，所以数据一到就先渲染。
+  if (window.MiCCodeNative && window.MiCCodeNative.listApps) {
+    const got = await new Promise(function (resolve) {
+      let done = false;
+      const timer = setTimeout(function () {
+        if (!done) { done = true; resolve(null); }
+      }, 9000);
+      window.__onApps = function (list) {
+        if (list && list.length) useNativeApps(list);
+        if (!done) { done = true; clearTimeout(timer); resolve(list); }
+      };
+      try { window.MiCCodeNative.listApps(); }
+      catch (e) { clearTimeout(timer); resolve(null); }
+    });
+    if (got && got.length) return;      // useNativeApps 已经渲染过
+  }
+
+  // ② 服务端通道（Termux 里的 pm list packages，只有包名没有图标）
+  let pkgs = [];
+  try {
+    const r = await fetch(API_BASE + "/api/apps");
+    const d = await r.json();
+    if (d.ok && d.apps) pkgs = d.apps;
+  } catch (e) { /* 离线，继续往下 */ }
+
+  if (pkgs.length) {
+    pickFromDevice = true;
+    PICK_ITEMS = pkgs.map(function (pkg) {
+      const seg = pkg.split(".").pop() || pkg;
+      return {
+        pkg: pkg,
+        name: seg.charAt(0).toUpperCase() + seg.slice(1),
+        fromDevice: true
+      };
+    });
+    pickLoaded = true;
+    renderPickList("");
+    return;
+  }
+
+  // ③ 都读不到就列常用 AI 应用，包名不对可以手填
+  PICK_ITEMS = APP_PRESETS.map(function (a) { return Object.assign({}, a); });
+  pickLoaded = true;
+  renderPickList("");
+}
+
+/* 按关键词过滤并渲染列表 */
+function renderPickList(q) {
+  const list = $("pickList");
+  const key = (q || "").trim().toLowerCase();
+  const items = key
+    ? PICK_ITEMS.filter(function (i) {
+        return i.name.toLowerCase().indexOf(key) >= 0
+            || i.pkg.toLowerCase().indexOf(key) >= 0;
+      })
+    : PICK_ITEMS;
+
+  list.innerHTML = "";
+
+  if (!pickFromDevice) {
+    const tip = document.createElement("div");
+    tip.style.cssText =
+      "padding:9px 16px;color:#8a7a52;font-size:11.5px;background:#191610;border-bottom:1px solid #241f14";
+    tip.textContent = "没读到设备上的应用列表。下面是常用 AI 应用，包名对不上就在下面手填。";
+    list.appendChild(tip);
+  }
+
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "pick-empty";
+    empty.textContent = "没有匹配的应用";
+    list.appendChild(empty);
+    return;
+  }
+
+  items.forEach(function (it) {
+    const row = document.createElement("div");
+    row.className = "pick-item" + (it.pkg === SPLIT_PKG ? " cur" : "");
+
+    const badge = document.createElement("div");
+    badge.className = "pick-badge";
+    badge.innerHTML = appIconHTML(it.pkg, it.badge, it.color, it.icon);
+
+    const info = document.createElement("div");
+    info.innerHTML =
+      '<div class="pick-name">' + esc(it.name) + "</div>" +
+      '<div class="pick-pkg">' + esc(it.pkg) +
+      (it.sys ? " · 系统" : it.fromDevice ? "" : "") + "</div>";
+
+    const cam = document.createElement("button");
+    cam.className = "pick-cam";
+    cam.title = "为它换一张图标";
+    cam.textContent = "＋";
+    cam.addEventListener("click", function (e) {
+      e.stopPropagation();
+      pickIconFor(it.pkg);
+    });
+
+    row.appendChild(badge);
+    row.appendChild(info);
+    row.appendChild(cam);
+    row.addEventListener("click", function () { chooseApp(it.pkg, it.name, it.icon); });
+    list.appendChild(row);
+  });
+}
+
+function chooseApp(pkg, name, icon) {
+  SPLIT_PKG = pkg;
+  SPLIT_NAME = name || pkg;
+  localStorage.setItem("miccode-split-pkg", SPLIT_PKG);
+  localStorage.setItem("miccode-split-name", SPLIT_NAME);
+  // 把真实图标存下来，工具栏按钮上也能显示（只存选中的那一个，几十 KB）
+  if (icon) {
+    try { localStorage.setItem("miccode-icon-" + pkg, icon); } catch (e) { }
+  }
+  $("pickWrap").classList.remove("open");
+  refreshSplitBtn();
+  doSplit();                    // 选完立刻分屏
+}
+
+/* 自动分屏：只有 APK 自己 startActivity 才算数 */
+function doSplit() {
+  // 为什么不用 Termux 的 am：`am start` 的发起方是 shell，shell 不在任何任务栈里，
+  // 系统找不到「当前全屏应用」这个上下文，LAUNCH_ADJACENT 就退化成悬浮窗。
+  // 必须由 MiCCode 这个正在全屏的 Activity 自己发起。
+  if (window.MiCCodeNative && window.MiCCodeNative.split) {
+    try {
+      // 返回 "mode4"=已明确请求分屏右半；"flag"=只带 LAUNCH_ADJACENT，位置系统定；
+      // "notfound"=包不存在；"error"=其他异常
+      const r = String(window.MiCCodeNative.split(SPLIT_PKG) || "");
+      console.log("[MiCCode] split -> " + r);
+      if (r === "notfound") {
+        // false = 系统里没有这个包，绑定已失效，清掉让下次重新选
+        SPLIT_PKG = "";
+        localStorage.removeItem("miccode-split-pkg");
+        refreshSplitBtn();
+        toast("没找到「" + (SPLIT_NAME || "这个应用") + "」，可能没装或被卸载了，点 ▾ 重新选", true);
+      } else if (r === "error") {
+        toast("分屏没成功，点 ▾ 换一个应用试试", true);
+      } else {
+        toast("已把 " + (SPLIT_NAME || SPLIT_PKG) + " 放到旁边");
+      }
+    } catch (e) {
+      toast("分屏调用失败：" + e.message, true);
+    }
+    return;
+  }
+  toast("自动分屏只在 APK 里有效。网页版请用系统分屏：最近任务 → 长按 MiCCode → 分屏", true);
+}
+
+/* 按钮：点主体 = 分屏；点 ▾ = 换搭子（永远可靠）；长按 = 换搭子（备用入口） */
+$("dsBtn").addEventListener("click", function (e) {
+  if (dsLongPressed) { dsLongPressed = false; return; }
+  if (e.target && e.target.id === "dsCaret") { openPicker(); return; }
+  if (!SPLIT_PKG) { openPicker(); return; }
+  doSplit();
+});
+
+/* 长按检测：关键不是时长，是**位移容差**。
+   之前用 pointerleave 清定时器，触摸屏上手指轻微滑动 1~2mm 就触发 leave，
+   长按从来没走完过 —— 这就是"不灵敏"的根源。
+   现在改成：移动超过 14px 才算放弃，1~2mm 的抖动忽略不计。 */
+$("dsBtn").addEventListener("pointerdown", function (e) {
+  clearTimeout(dsPressTimer);
+  pressX = e.clientX;
+  pressY = e.clientY;
+  dsPressTimer = setTimeout(function () {
+    dsLongPressed = true;
+    openPicker();
+    // 兜底：万一长按后系统吞掉了 click，这个标志不能卡住下一次点击
+    setTimeout(function () { dsLongPressed = false; }, 1200);
+  }, 600);
+});
+$("dsBtn").addEventListener("pointermove", function (e) {
+  if (!dsPressTimer) return;
+  if (Math.abs(e.clientX - pressX) > 14 || Math.abs(e.clientY - pressY) > 14) {
+    clearTimeout(dsPressTimer);
+  }
+});
+["pointerup", "pointercancel"].forEach(function (ev) {
+  $("dsBtn").addEventListener(ev, function () { clearTimeout(dsPressTimer); });
+});
+// 长按在 WebView 里可能触发系统的文本选择/上下文菜单，抢走后续事件
+$("dsBtn").addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+/* 选择器交互 */
+$("pickClose").addEventListener("click", function () { $("pickWrap").classList.remove("open"); });
+$("pickWrap").addEventListener("click", function (e) {
+  if (e.target === $("pickWrap")) $("pickWrap").classList.remove("open");
+});
+$("pickFilter").addEventListener("input", function () { renderPickList(this.value); });
+$("pickAdd").addEventListener("click", function () {
+  const v = $("pickInput").value.trim();
+  if (!v) return;
+  $("pickInput").value = "";
+  const seg = v.split(".").pop() || v;
+  chooseApp(v, seg.charAt(0).toUpperCase() + seg.slice(1), null);
+});
+$("pickInput").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") $("pickAdd").click();
+});
+
+refreshSplitBtn();
+
+/* ============ 文件：新建 / 保存 / 打开 / 删除 ============ */
+let FILES = [];
+try { FILES = JSON.parse(localStorage.getItem("miccode-files") || "[]") || []; } catch (e) { FILES = []; }
+let CUR_FILE = null;   // null = 未命名草稿
+let dirty = false;     // 有未落盘的改动（仅用于退出判断）
+
+function refreshCurFile() {
+  $("curFile").textContent = CUR_FILE || "未命名";
+}
+
+function persistFiles() {
+  try { localStorage.setItem("miccode-files", JSON.stringify(FILES)); }
+  catch (e) { toast("存不下了：localStorage 已满", true); }
+}
+
+/* 保存：无同名则新建，有则覆盖。未写 .cs 自动补 */
+function saveFile(rawName) {
+  let name = (rawName || "").trim();
+  if (!name) { toast("先起个文件名", true); $("fileName").focus(); return; }
+  if (!/\.cs$/i.test(name)) name += ".cs";
+  const now = Date.now();
+  const exist = FILES.find((f) => f.name === name);
+  if (exist) {
+    exist.code = cm.getValue(); exist.mode = MODE; exist.ts = now;
+    toast("已覆盖保存 " + name);
+  } else {
+    FILES.push({ name: name, code: cm.getValue(), mode: MODE, ts: now });
+    toast("已保存 " + name);
+  }
+  persistFiles();
+  CUR_FILE = name;
+  refreshCurFile();
+  renderFileList();
+}
+
+function openFile(f) {
+  CUR_FILE = f.name;
+  cm.setValue(f.code || "");
+  if (f.mode && f.mode !== MODE) {
+    MODE = f.mode;
+    $("mode").value = MODE;
+    refreshBadge();
+  }
+  varsDirty = true;
+  scanVars(cm.getValue());
+  refreshCurFile();
+  $("fileWrap").classList.remove("open");
+  cm.focus();      // 同 importText：面板关掉后让按键立刻落到编辑器
+  toast("已打开 " + f.name);
+}
+
+function newFile() {
+  CUR_FILE = null;
+  cm.setValue("");
+  varsDirty = true;
+  scanVars("");
+  refreshCurFile();
+  $("fileWrap").classList.remove("open");
+  $("fileName").value = "";
+  cm.focus();
+  toast("新建空白文档，写完记得保存");
+}
+
+function renderFileList() {
+  const list = $("fileList");
+  list.innerHTML = "";
+  if (!FILES.length) {
+    list.innerHTML = '<div class="pick-empty">还没有保存过文件</div>';
+    $("fileCount").textContent = "";
+    return;
+  }
+  FILES.slice().sort((a, b) => b.ts - a.ts).forEach((f) => {
+    const row = document.createElement("div");
+    row.className = "pick-item" + (f.name === CUR_FILE ? " cur" : "");
+
+    const info = document.createElement("div");
+    const d = new Date(f.ts);
+    const when = (d.getMonth() + 1) + "-" + d.getDate() + " " +
+                 String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    info.innerHTML =
+      '<div class="pick-name">' + esc(f.name) +
+      (f.name === CUR_FILE ? '<span style="color:#5c9b76"> · 当前</span>' : "") + "</div>" +
+      '<div class="pick-pkg">' + (f.mode === "unity" ? "Unity" : "C#") + " · " + when +
+      " · " + (f.code || "").length + " 字符</div>";
+
+    const exp = document.createElement("button");
+    exp.className = "pick-cam";
+    exp.textContent = "↓";
+    exp.title = "导出到 下载/MiCCode/（浏览器里是直接下载）";
+    exp.addEventListener("click", (e) => {
+      e.stopPropagation();
+      exportOne(f.name);
+    });
+
+    const del = document.createElement("button");
+    del.className = "pick-cam";
+    del.textContent = "×";
+    del.title = "删除";
+    // APK 的 WebView 没配 WebChromeClient，confirm() 会静默返回 false，
+    // 删除确认自己做：点一下变「确认」，2.5 秒内再点才真删
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (del.dataset.armed) {
+        FILES = FILES.filter((x) => x.name !== f.name);
+        persistFiles();
+        if (CUR_FILE === f.name) { CUR_FILE = null; refreshCurFile(); }
+        renderFileList();
+        toast("已删除 " + f.name);
+      } else {
+        del.dataset.armed = "1";
+        del.textContent = "确认";
+        del.style.color = "#e07070";
+        del.style.borderColor = "#6a3030";
+        setTimeout(() => {
+          if (del.isConnected) {
+            del.dataset.armed = "";
+            del.textContent = "×";
+            del.style.color = "";
+            del.style.borderColor = "";
+          }
+        }, 2500);
+      }
+    });
+
+    row.appendChild(info);
+    row.appendChild(exp);
+    row.appendChild(del);
+    row.addEventListener("click", () => openFile(f));
+    list.appendChild(row);
+  });
+  $("fileCount").textContent = FILES.length + " 个文件";
+}
+
+function openFilePanel(focusName) {
+  $("fileName").value = CUR_FILE || "";
+  renderFileList();
+  $("fileWrap").classList.add("open");
+  if (focusName) $("fileName").focus();
+}
+
+$("fileBtn").addEventListener("click", () => openFilePanel(false));
+$("fileClose").addEventListener("click", () => $("fileWrap").classList.remove("open"));
+$("fileWrap").addEventListener("click", (e) => {
+  if (e.target === $("fileWrap")) $("fileWrap").classList.remove("open");
+});
+$("fileSaveBtn").addEventListener("click", () => saveFile($("fileName").value));
+$("fileName").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") saveFile($("fileName").value);
+});
+$("fileNew").addEventListener("click", newFile);
+
+/* 清空全部文件：两段式确认（点一下变「确认清空 N 个？」，2.6 秒内再点才真删） */
+$("fileClearAll").addEventListener("click", function () {
+  const btn = $("fileClearAll");
+  if (!FILES.length) { toast("列表已经是空的", true); return; }
+
+  if (!btn.dataset.armed) {
+    btn.dataset.armed = "1";
+    btn.textContent = "确认清空 " + FILES.length + " 个？";
+    btn.classList.add("danger");
+    clearTimeout(btn._t);
+    btn._t = setTimeout(function () {
+      btn.dataset.armed = "";
+      btn.textContent = "清空";
+      btn.classList.remove("danger");
+    }, 2600);
+    return;
+  }
+
+  clearTimeout(btn._t);
+  const n = FILES.length;
+  FILES = [];
+  persistFiles();
+  if (CUR_FILE) { CUR_FILE = null; refreshCurFile(); }   // 内容留在编辑器里当草稿
+  btn.dataset.armed = "";
+  btn.textContent = "清空";
+  btn.classList.remove("danger");
+  renderFileList();
+  toast("已清空 " + n + " 个文件（编辑器里的内容还在）");
+});
+
+/* 导入核心：文本 → 去BOM → 规范名 → 猜模式 → 进列表 → 载入编辑器 */
+function importText(rawName, text) {
+  text = String(text || "");
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);   // 去 UTF-8 BOM
+  if (!text.trim()) return "empty";
+
+  let name = (rawName || "导入.cs").replace(/[\\/:*?"<>|]/g, "_");
+  if (!/\.cs$/i.test(name)) name += ".cs";
+  // 猜模式：有 Unity 痕迹就切 Unity，否则保持当前模式
+  const mode = /UnityEngine|MonoBehaviour|IEnumerator/.test(text) ? "unity" : MODE;
+
+  const exist = FILES.find((f) => f.name === name);
+  if (exist) {
+    exist.code = text; exist.mode = mode; exist.ts = Date.now();
+  } else {
+    FILES.push({ name: name, code: text, mode: mode, ts: Date.now() });
+  }
+  persistFiles();
+
+  CUR_FILE = name;
+  cm.setValue(text);
+  MODE = mode;
+  $("mode").value = MODE;
+  refreshBadge();
+  varsDirty = true;
+  scanVars(text);
+  refreshCurFile();
+  cm.focus();      // 外接键盘场景：不聚焦的话，面板关掉后按键无处可去，像"无法编辑"
+  return exist ? "overwrite" : "new";
+}
+
+/* 导入设备上的 .cs / .txt：读成文本后走 importText */
+function importFile(file) {
+  if (!file) return;
+  const fr = new FileReader();
+  fr.onload = function () {
+    const r = importText(file.name, fr.result);
+    if (r === "empty") { toast("文件是空的", true); return; }
+    $("fileWrap").classList.remove("open");
+    toast(r === "overwrite" ? "已导入并覆盖同名文件 " + CUR_FILE : "已导入 " + CUR_FILE);
+  };
+  fr.onerror = function () { toast("读文件失败", true); };
+  fr.readAsText(file, "utf-8");
+}
+
+/* 文件夹批量导入：APK 原生枚举结果回传这里 */
+window.__onFolder = function (data) {
+  if (!data || !data.files || !data.files.length) {
+    toast("这个文件夹里没有找到 .cs 文件", true);
+    return;
+  }
+  data.files.forEach(function (x) { importText(x.name, x.code); });
+  renderFileList();
+  refreshCurFile();
+  toast("已导入 " + data.files.length + " 个文件" +
+        (data.cut ? "（超过 60 个，只收了前面的）" : ""));
+};
+
+$("fileImport").addEventListener("click", function () {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.multiple = true;   // 支持多选：长按第一个文件后可勾选多个
+  // 系统选择器认不出 .cs 的 MIME，APK 端 Intent 已放开全部文件，前端校验扩展名
+  inp.accept = ".cs,text/plain,.txt";
+  inp.addEventListener("change", function () {
+    const fs = Array.from(inp.files || []);
+    if (!fs.length) return;
+    if (fs.length === 1) { importFile(fs[0]); return; }   // 单选走原路径（含关闭面板）
+    let done = 0;
+    fs.forEach(function (f) {
+      const fr = new FileReader();
+      fr.onload = function () {
+        importText(f.name, fr.result);
+        if (++done === fs.length) {
+          renderFileList();
+          refreshCurFile();
+          toast("已导入 " + fs.length + " 个文件");
+        }
+      };
+      fr.onerror = function () { if (++done === fs.length) toast("部分文件读取失败", true); };
+      fr.readAsText(f, "utf-8");
+    });
+  });
+  inp.click();
+});
+
+/* 文件夹导入：APK 走原生目录树枚举；浏览器走 webkitdirectory */
+$("fileFolder").addEventListener("click", function () {
+  if (window.MiCCodeNative && window.MiCCodeNative.importFolder) {
+    toast("进到目标文件夹后，按屏幕底部的「使用此文件夹」才会生效", true);
+    window.MiCCodeNative.importFolder();
+    return;
+  }
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.setAttribute("webkitdirectory", "");
+  inp.addEventListener("change", function () {
+    const fs = Array.from(inp.files || []).filter((f) => /\.cs$/i.test(f.name));
+    if (!fs.length) { toast("这个文件夹里没有 .cs 文件", true); return; }
+    let done = 0;
+    fs.forEach(function (f) {
+      const fr = new FileReader();
+      fr.onload = function () {
+        importText(f.name, fr.result);
+        if (++done === fs.length) {
+          renderFileList();
+          refreshCurFile();
+          toast("已导入 " + fs.length + " 个文件");
+        }
+      };
+      fr.readAsText(f, "utf-8");
+    });
+  });
+  inp.click();
+});
+
+/* 导出单个文件：APK 写入 下载/MiCCode/；浏览器走 Blob 下载 */
+function exportOne(name) {
+  const f = FILES.find((x) => x.name === name);
+  if (!f) return;
+  if (window.MiCCodeNative && window.MiCCodeNative.exportFile) {
+    const r = String(window.MiCCodeNative.exportFile(f.name, f.code || ""));
+    toast(r.indexOf("ok") === 0 ? "已导出到 下载/MiCCode/" + f.name
+                               : "导出失败（" + r + "）", r.indexOf("ok") !== 0);
+    return;
+  }
+  const blob = new Blob([f.code || ""], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = f.name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  toast("已下载 " + f.name);
+}
+
+refreshCurFile();
+
+/* ============ GitHub 拉取 ============ */
+/* 解析支持的三种链接：
+   https://github.com/owner/repo                          → 仓库根目录
+   https://github.com/owner/repo/tree/branch/path         → 目录
+   https://github.com/owner/repo/blob/branch/path/x.cs    → 单个文件
+   https://raw.githubusercontent.com/owner/repo/branch/x.cs → 单个文件 */
+function parseGh(raw) {
+  const u = (raw || "").trim().replace(/\.git$/, "");
+  let m = u.match(/^https?:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
+  if (m) return { kind: "raw", owner: m[1], repo: m[2], branch: m[3], path: m[4] };
+  m = u.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)(?:\/(blob|tree)\/([^/]+)(?:\/(.*?))?)?\/?$/);
+  if (m) {
+    return {
+      kind: m[3] ? (m[3] === "blob" ? "blob" : "tree") : "repo",
+      owner: m[1], repo: m[2], branch: m[4] || "", path: m[5] || ""
+    };
+  }
+  return null;
+}
+
+function baseName(p) { return (p || "").split("/").pop() || "导入.cs"; }
+
+async function ghImport(url) {
+  const p = parseGh(url);
+  if (!p) { toast("这不是 GitHub 链接（要 github.com 或 raw.githubusercontent.com）", true); return; }
+
+  // 单文件：直接取 raw 文本
+  if (p.kind === "raw" || p.kind === "blob") {
+    const raw = p.kind === "raw" ? url
+      : "https://raw.githubusercontent.com/" + p.owner + "/" + p.repo + "/" + p.branch + "/" + p.path;
+    toast("拉取 " + baseName(p.path) + " …");
+    try {
+      const r = await fetch(raw);
+      if (!r.ok) { toast("拉取失败：HTTP " + r.status + "（私有仓库需要登录，本功能只支持公开仓库）", true); return; }
+      const t = await r.text();
+      const res = importText(baseName(p.path), t);
+      if (res === "empty") { toast("文件是空的", true); return; }
+      renderFileList(); refreshCurFile();
+      toast("已拉取 " + CUR_FILE);
+    } catch (e) {
+      toast("网络错误：" + e.message + "（可能需要代理）", true);
+    }
+    return;
+  }
+
+  // 仓库 / 目录：走 contents API 列 .cs
+  const api = "https://api.github.com/repos/" + p.owner + "/" + p.repo + "/contents/" +
+              p.path + (p.branch ? "?ref=" + encodeURIComponent(p.branch) : "");
+  toast("读取目录…");
+  let list;
+  try {
+    const r = await fetch(api, { headers: { "Accept": "application/vnd.github+json" } });
+    if (r.status === 403 || r.status === 429) {
+      toast("GitHub 限流了（未登录每小时 60 次），过一会儿再试", true);
+      return;
+    }
+    if (!r.ok) { toast("读取失败：HTTP " + r.status + "（私有仓库不支持）", true); return; }
+    list = await r.json();
+  } catch (e) {
+    toast("网络错误：" + e.message + "（可能需要代理）", true);
+    return;
+  }
+
+  const files = (Array.isArray(list) ? list : [list])
+    .filter((x) => x && x.type === "file" && /\.cs$/i.test(x.name));
+  if (!files.length) {
+    toast("这个目录里没有 .cs 文件" + (p.kind === "repo" ? "，试试点进某个子目录后再复制链接" : ""), true);
+    return;
+  }
+
+  const cap = files.slice(0, 30);
+  let done = 0, failed = 0;
+  toast("拉取 " + cap.length + " 个文件…");
+  cap.forEach(function (f) {
+    fetch(f.download_url)
+      .then((r) => { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(function (t) {
+        importText(f.name, t);
+        if (++done + failed === cap.length) ghFinish(done, failed);
+      })
+      .catch(function () {
+        failed++;
+        if (done + failed === cap.length) ghFinish(done, failed);
+      });
+  });
+}
+
+function ghFinish(ok, bad) {
+  renderFileList();
+  refreshCurFile();
+  toast("已拉取 " + ok + " 个文件" + (bad ? "，" + bad + " 个失败" : ""));
+}
+
+$("gitToggle").addEventListener("click", function () {
+  const row = $("gitRow");
+  row.classList.toggle("open");
+  if (row.classList.contains("open")) $("gitUrl").focus();
+});
+$("gitFetch").addEventListener("click", function () { ghImport($("gitUrl").value); });
+$("gitUrl").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") $("gitFetch").click();
+});
+
+/* ============ 发给搭档 ============ */
+/* 复制文本。
+   优先 execCommand：不要安全上下文、不要求用户手势，
+   APK 里的 miccode.local 和普通 http 页面都能用；
+   失败再退回 clipboard API（需要 https 或 localhost）。 */
+function copyText(text) {
+  return new Promise(function (resolve, reject) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+    document.body.appendChild(ta);
+
+    let ok = false;
+    try {
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      ok = document.execCommand("copy");
+    } catch (e) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+
+    if (ok) { resolve(); return; }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(resolve).catch(reject);
+    } else {
+      reject(new Error("no copy method"));
+    }
+  });
+}
+
+$("askBtn").addEventListener("click", function () {
+  const code = cm.getValue().trim();
+  if (!code) return;
+  copyText(code).then(function () {
+    toast("代码已复制 · 切到 AI 粘贴给它看");
+  }).catch(function () {
+    toast("复制失败，手动全选 Ctrl+A 再 Ctrl+C", true);
+  });
+});
+
+/* Ctrl+Shift+C 一键复制（外接键盘用；软键盘上没有 Ctrl，点按钮即可） */
+document.addEventListener("keydown", function (e) {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "C" || e.key === "c")) {
+    e.preventDefault();
+    $("askBtn").click();
+  }
+});
+
+/* 分屏搭档相关交互已移除（APK 里读不到设备应用列表，只留「发给搭档」） */
+
+/* 示例下拉 */
+const sel = $("samples");
+Object.keys(SAMPLES).forEach(function (k) {
+  const o = document.createElement("option");
+  o.value = k;
+  o.textContent = k;
+  sel.appendChild(o);
+});
+sel.addEventListener("change", function () {
+  const k = sel.value;
+  if (!k || !SAMPLES[k]) return;
+  if (cm.getValue().trim() && !confirm("替换当前代码为示例「" + k + "」？")) {
+    sel.value = "";
+    return;
+  }
+  cm.setValue(SAMPLES[k]);
+  cm.focus();
+  sel.value = "";
+});
+
+/* 快捷键 */
+document.addEventListener("keydown", function (e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); doRun(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+    e.preventDefault();
+    // 已命名文件直接存；未命名的打开面板让起名字
+    if (CUR_FILE) { saveFile(CUR_FILE); }
+    else { openFilePanel(true); }
+  }
+  if (e.key === "Escape") {
+    hideTip();
+    $("pickWrap").classList.remove("open");
+    $("fileWrap").classList.remove("open");
+  }
+});
+
+/* 启动 */
+loadSymbols();
+loadEnv();
+updateSigbar();
+cm.focus();
+</script>
+</body>
+</html>

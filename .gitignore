@@ -1,0 +1,26 @@
+# 构建中间产物
+miccode/apk/build/
+miccode/apk/assets/
+miccode/apk/*.apk
+
+# 签名密钥：绝对不要公开（泄露后任何人都能签出覆盖安装的包）
+*.keystore
+
+# 打包好的 zip
+miccode.zip
+
+# apksigner 的 v4 签名临时文件
+*.idsig
+
+# 本地工作区（含工作日志）
+.workbuddy/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 编辑器 / 系统杂项
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
