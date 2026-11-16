@@ -98,7 +98,9 @@ MiCCode 的取舍是：**能离线做的全做进 APK，真正需要编译的部
 
 ### 1. 装 APK
 
-仓库根目录的 [`MiCCode.apk`](MiCCode.apk)，或自己构建（见下）。安装时若提示「安装包已损坏」，通常是文件传输不完整——核对大小，或先卸载旧版。
+到 [**Releases 页面**](https://github.com/cxkdz/MiCCode/releases/latest) 下载最新的 `MiCCode.apk`，或者自己构建（见下）。
+
+安装时若提示「安装包已损坏」，通常是文件传输不完整——核对大小，或先卸载旧版。
 
 ### 2. 连接 Termux（可选，只为「运行」按钮）
 
@@ -197,7 +199,6 @@ python build_symbols.py "D:/Unity/Editor/Data/Managed/UnityEngine" -o symbols.js
 ## 目录结构
 
 ```
-MiCCode.apk              直接可装的安装包
 miccode/
 ├── index.html           编辑器全部前端逻辑（CodeMirror + 补全 + 悬停 + 文件 + GitHub 拉取）
 ├── symbols.json         符号表（13764 成员 / 1339 类型 / 1493 命名空间）
@@ -213,6 +214,8 @@ miccode/
 ```
 
 `MainActivity` 提供的原生能力：分屏启动、枚举已安装应用（含真实图标）、文件选择器、文件夹树遍历、导出到下载目录、退出前落盘。
+
+> 安装包不在仓库里，走 [Releases](https://github.com/cxkdz/MiCCode/releases)——二进制文件放进 git 会让每次构建都永久增加仓库体积。
 
 ---
 

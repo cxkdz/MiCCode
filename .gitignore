@@ -6,6 +6,9 @@ miccode/apk/*.apk
 # 签名密钥：绝对不要公开（泄露后任何人都能签出覆盖安装的包）
 *.keystore
 
+# 发布用的 APK（走 GitHub Releases，不进仓库）
+/MiCCode.apk
+
 # 打包好的 zip
 miccode.zip
 
