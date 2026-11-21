@@ -1,262 +1,111 @@
 # MiCCode
 
-在**安卓平板 / 手机**上写 C# 的离线编辑器：语法高亮、上下文补全、悬停看 API 签名、文件管理，可选接 Termux 用 mono 本地编译运行。
+MiCCode 是一款面向 Android 平板和手机的 C# / Unity 脚本编辑器。编辑、补全和 API 查询可离线使用；如需编译运行，可连接 Termux 或 PC 上的本地服务。
 
-> 定位很明确：**不需要联网就能写、能补全、能查 API；想真正跑起来时，交给 Termux 里的编译器。**
+**当前源码版本：v2.10（Android versionCode 21）**
 
-![主界面](docs/main.png)
+## 获取
 
----
-
-## 为什么做这个
-
-在 PC 上写 Unity 脚本没问题，但碎片时间（床上、通勤、没网）想在平板上改脚本、写练习时，现成方案都不合适：
-
-| 方案 | 问题 |
-|---|---|
-| VS Code Remote / 云 IDE | 必须有网，且 PC 得开着 |
-| 手机上的代码编辑器 | 普遍只有关键字补全，没有 C# 语义提示 |
-| Unity 编辑器 | 根本没有安卓版 |
-
-MiCCode 的取舍是：**能离线做的全做进 APK，真正需要编译的部分交给 Termux**。所以它装完就能用——只是「运行」按钮需要 Termux 配合。
-
----
+APK 发布包请从 [GitHub Releases](https://github.com/cxkdz/MiCCode/releases) 下载。仓库保存源码和符号索引，不跟踪 APK 二进制。
 
 ## 功能
 
-| 能力 | 说明 | 需要什么 |
-|---|---|---|
-| 语法高亮 / 行号 / 括号匹配 | CodeMirror 5，本地打包 | 无 |
-| 关键字补全 | 打 `pu` → `public` / `private` / `protected` | 无 |
-| 类型补全 | 打 `IEn` → `IEnumerator`；Unity 模式补全协程、UGUI、TextMesh Pro 常用类型 | 无 |
-| 成员补全（L2） | `Console.` → 列出成员；`Queue<int> q` 后 `q.` 能推断类型 | 无 |
-| 悬停看签名 | 列出全部重载 + 说明，含中文手写文档 | 无 |
-| 常用 Unity API | 协程、2D 生命周期、UGUI、TextMesh Pro；识别 Unity 脚本后自动启用对应补全 | 无 |
-| 自动补 using | 选中 `SceneManager` 自动插入 `using UnityEngine.SceneManagement;` | 无 |
-| 文件管理 | 新建 / 命名保存 / 打开 / 删除 / 一键清空 | 无 |
-| 整理缩进 | 按 C# 语法整理全文；有选区时只整理选中行 | 无 |
-| 导入 | 单个 `.cs`、多选、整个文件夹（递归）、GitHub 仓库 | 无（GitHub 需联网） |
-| 导出 | 写到 `下载/MiCCode/` | 无 |
-| 分屏搭子 | 一键把 AI 应用放到相邻窗口 | 无 |
-| **编译运行与控制台输入** | 点「运行」出结果；可在「程序输入」里逐行提供 `Console.ReadLine()` 内容 | **Termux + mono**（或连 PC） |
-
-![文件面板](docs/files.png)
-![选择搭子](docs/picker.png)
-
----
-
-## 三个关键设计
-
-### 1. 离线符号表：不做语言服务器，只做一张查得动的表
-
-补全和悬停通常要 Roslyn（几百 MB 的 .NET 编译器平台），安卓上跑不动。这里的做法是**把 API 索引预先算好**：
-
-- 从当前 Unity 安装的模块 XML 解析出 **13764 条引擎成员**，并合并基础类库、协程生命周期和 UGUI/TMP 常用补充，共 **14277 条索引项、1368 个类型**
-- 补充 `Console`、`File`、`Task`、`Regex` 等常用基础类库，以及 Unity UI / TextMesh Pro 独立包 API
-- 手写补齐 2D/3D 碰撞触发、应用焦点/暂停、编辑器验证等 `MonoBehaviour` 生命周期回调
-- 每个类型带命名空间映射，共 1493 条，用于「自动补 using」
-
-代价是：只能查到**符号表里有的东西**，查不到泛型约束、重载解析这类语义信息。收益是：**整套索引 1.84 MB，断网可用，冷启动毫秒级**。
-
-### 2. 轻量 L2 补全：不依赖 Roslyn 的「猜类型」
-
-「`sb.` 能列出 `StringBuilder` 的成员」这件事，本质是知道 `sb` 是什么类型。完整做法是语义分析，这里的做法是三条正则 + 一张表：
-
-- 扫描当前文件里的 `var x = new Foo()` / `Foo x = ...`，建立局部变量表
-- **先剥掉泛型参数再匹配**（`Queue<int> q` → `Queue q`），否则 `<int>` 会把声明识别全挡住
-- 解析 `class X : MonoBehaviour`，把基类成员直接放进候选（所以 `Sta` 能出 `StartCoroutine`）
-- 全量成员名池（约 5000 条），支持「直接打成员名」补全，同名成员优先 `MonoBehaviour`
-
-准确率不是 100%，但练习场景都是单文件小程序，实测够用。
-
-### 3. WebView 壳 + 本地编译服务：界面离线，编译外挂
-
-```
-┌─────────────── APK ───────────────┐        ┌────── Termux ──────┐
-│ WebView 拦截 http://miccode.local │        │ python server.py   │
-│   → 从 assets/www 读文件（离线）  │  HTTP  │ mcs 编译 + mono 跑 │
-│ CodeMirror + symbols.json         │ ─────► │ 127.0.0.1:8080     │
-└───────────────────────────────────┘        └────────────────────┘
-```
-
-- 页面域名是虚拟的 `miccode.local`，被 `shouldInterceptRequest` 拦下、直接从 APK 的 `assets` 读——**没网、没 Termux 也能打开写代码**
-- 只有 `/api/*` 真的发到 `127.0.0.1:8080`，这时才需要 Termux
-- 跨域要处理两件事：CORS（页面 origin 是虚拟域），以及 **Private Network Access**（Chromium 从非 localhost 源访问 127.0.0.1 会发 PNA 预检，不回 `Access-Control-Allow-Private-Network: true` 就直接拦掉）
-- 服务没起来时，APK 会通过 Termux 官方的 `RUN_COMMAND` Intent 在后台拉起（需要一次授权）
-
-### 工程上的几个坑（都踩过）
-
-| 问题 | 原因 | 解决 |
-|---|---|---|
-| `apksigner` 死活不生成 v1 签名 | 它按 APK 里声明的 `minSdk` 判断，≥24 就认为 v2 够用 | 把 `minSdk` 降到 21，v1 自动生成；国产安装器只认 v1 |
-| 装了 d8 报 `NullPointerException` | build-tools 34 的 d8 与 JDK 21 不兼容 | d8 用 build-tools 37，其余用 34 |
-| 文件夹导入后代码变成一行 | Java 侧 JSON 转义把 `\n` 压成了空格 | 新增 `jsonEscText`，`\n` 转成 `\\n` |
-| 导入后打不了字 | 面板关闭后编辑器没拿到焦点 | 导入/打开/新建后补 `cm.focus()` |
-| Termux 里 `pkg update` 一直报 No mirror | 新版 `pkg` 有自己的镜像配置，**不读 `sources.list`** | 改好的 `sources.list` 直接用 `apt` 装 |
-
----
-
-## 快速开始
-
-### 1. 装 APK
-
-到 [**Releases 页面**](https://github.com/cxkdz/MiCCode/releases/latest) 下载最新的 `MiCCode.apk`，或者自己构建（见下）。
-
-安装时若提示「安装包已损坏」，通常是文件传输不完整——核对大小，或先卸载旧版。
-
-### 2. 连接 Termux（可选，只为「运行」按钮）
-
-需要 C# 编译器，Termux 里装 mono 即可。**逐块粘贴**执行：
-
-```bash
-# 块 1：换清华源 + 装包
-echo "deb https://mirrors.tuna.tsinghua.edu.cn/termux/apt/termux-main stable main" > $PREFIX/etc/apt/sources.list
-apt update && apt install -y python mono unzip
-```
-
-> 注意用 `apt` 而不是 `pkg`：新版 `pkg` 不读 `sources.list`，会一直报 `No mirror selected` 并去测海外镜像。
-> 想用 `pkg` 就先跑 `termux-change-repo` 在界面里选镜像。
-
-```bash
-# 块 2：权限 + 存储 + 防杀后台（弹窗点允许）
-mkdir -p ~/.termux && echo "allow-external-apps=true" >> ~/.termux/termux.properties && termux-setup-storage && termux-wake-lock
-```
-
-```bash
-# 块 3：把项目放到 ~/miccode（zip 从仓库下载，解压到 Downloads 后）
-cd ~ && unzip -o ~/storage/downloads/<这里填zip文件名>.zip
-# 或直接：
-# git clone https://github.com/cxkdz/MiCCode.git MiCCode && cp -r MiCCode/miccode ~/miccode
-cd ~/miccode && echo 'class P{static void Main(){System.Console.WriteLine("OK");}}' > t.cs && mcs t.cs && mono t.exe
-```
-
-看到 `OK` 说明编译器和运行时都通了。
-
-```bash
-# 块 4：启动服务
-python server.py --no-browser
-```
-
-**判据**：横幅里「编译器」一行是 `mcs`。然后打开 MiCCode，右上角徽标会从橙色「离线 · 只能编辑」变成 `mcs · C#7`。
-
-两个一次性设置：
-
-1. 设置 → 应用 → MiCCode → 权限 → 其他权限 →「在 Termux 环境中运行命令」（**需先装 Termux 这条权限才会出现**；找不到也不影响，手动起服务即可）
-2. 设置 → 电池 → 电池优化 → Termux 设为「不优化」
-
-### 3. 不装 Termux 也能用
-
-写代码、补全、悬停签名、文件管理、导入导出全部离线可用，只有「运行」会提示需要服务。也可以让平板连 PC：PC 上 `python server.py --host 0.0.0.0`，平板浏览器打开 `http://<PC的IP>:8080`。
-
-> 安全提醒：`--host 0.0.0.0` 会让同一网络中的设备访问运行服务。请只在可信网络使用，不要把 8080 端口转发到公网；服务会拒绝跨源网页调用，但仍应把网络上的直连客户端视为可信用户。
-
----
-
-## 两种模式
-
-左上角切换：
-
-| 模式 | 补全范围 | 运行 |
-|---|---|---|
-| **C# 脚本** | 只有基础类库（`Console`/`List`/`Math`…），无 Unity 干扰 | ✅ Termux 可跑 |
-| **Unity 脚本** | 加上 13000+ 条 `UnityEngine` API | ❌ 只能编辑（缺 `UnityEngine.dll` 与引擎运行时） |
-
-Unity 模式的价值在于**写脚本时能补全、能查签名**，写完拷回 Unity 编辑器编译。
-
----
-
-## 自己构建
-
-**不需要 Gradle**，`build.sh` 直接调 SDK 工具链：
-
-```bash
-cd miccode/apk && bash build.sh
-```
-
-需要（路径在 `build.sh` 顶部改）：
-
-| 用途 | 版本 |
+| 功能 | 说明 |
 |---|---|
-| JDK | 21（Android Studio 自带 `jbr`） |
-| build-tools | 34.0.0（打包）+ 37.0.0（d8，34 的 d8 在 JDK 21 上会 NPE） |
-| platform | android-34 |
+| C# / Unity 补全 | 关键字、类型、成员、继承成员及局部变量类型推断 |
+| API 查询 | 悬停或移动光标查看签名与说明 |
+| Unity API | 协程、常用生命周期回调、UGUI、TextMesh Pro |
+| 自动模式识别 | 检测到 MonoBehaviour、Coroutine、UnityEngine 或 TMP 等脚本特征时切换 Unity 补全；可手动切换 |
+| 整理缩进 | 整理全文或选中行；快捷键 Alt+Shift+F |
+| 文件管理 | 新建、保存、打开、删除、草稿自动保存 |
+| 导入与导出 | .cs / .txt、多选、文件夹、GitHub 公开仓库及本地导出 |
+| 控制台输入 | 为 Console.ReadLine() 提供逐行输入 |
+| 运行代码 | 通过 Termux Mono 或局域网 PC 服务编译并运行纯 C# 程序 |
 
-流程：`aapt2 compile → aapt2 link → javac → d8 → 重建 zip 塞 dex → zipalign → apksigner`。
+基本快捷键：Ctrl+S 打开文件面板，Ctrl+Enter 运行代码。
 
-网站部分（`miccode/index.html` 等）会被打包进 APK 的 `assets/www/`，所以**改完网页要重新 build 才会进 APK**。
+## 两种补全模式
 
-**签名**：`build.sh` 首次运行会生成 `miccode.keystore`（已被 `.gitignore` 排除）。自己生成的密钥与原版不同，无法覆盖安装，需先卸载。
+| 模式 | 补全范围 | 是否可运行 |
+|---|---|---|
+| C# | 常用基础类库与 .NET API | 连接编译服务后可运行 |
+| Unity | Unity API、协程、UGUI 与 TextMesh Pro 常用符号 | 不能在 MiCCode 内运行 Unity 脚本 |
 
-### 重建符号表
+Unity 脚本需要 Unity 引擎和 UnityEngine 程序集。MiCCode 提供离线编辑和 API 查询，脚本需拷回 Unity 工程编译。
 
-```bash
-cd miccode
+## 运行编译服务
+
+### Android / Termux
+
+在 Termux 安装依赖并获取仓库：
+
+~~~bash
+pkg install git python mono
+git clone https://github.com/cxkdz/MiCCode.git ~/MiCCode
+cd ~/MiCCode/miccode
+python server.py --no-browser
+~~~
+
+然后打开 MiCCode。服务默认监听本机 127.0.0.1:8080。若要让 APK 自动启动 Termux 服务，还需启用 Termux 外部命令权限，并把项目目录放在 $HOME/miccode。可用链接指向仓库目录：
+
+~~~bash
+ln -s "$HOME/MiCCode/miccode" "$HOME/miccode"
+mkdir -p ~/.termux
+echo "allow-external-apps=true" >> ~/.termux/termux.properties
+termux-wake-lock
+~~~
+
+首次使用时，在 Android 设置中允许 MiCCode 在 Termux 环境中运行命令。
+
+### PC / 局域网
+
+在 PC 的 miccode 目录运行：
+
+~~~bash
+python server.py --host 0.0.0.0
+~~~
+
+在同一局域网的平板浏览器打开 http://PC的局域网IP:8080。请仅在可信网络中使用，不要把服务端口转发到公网。编译服务会执行提交的代码，且不提供用户登录认证；网络上的直接客户端应视为可信用户。
+
+## 索引与补全的边界
+
+当前符号表由 16 个 Unity 模块 XML 与手写补充生成，包含 14,277 条生成器统计索引项和 1,368 个类型。统计项包括 Unity XML 成员及基础类库、生命周期、UGUI / TextMesh Pro 补充。
+
+补全使用离线符号表和轻量语法推断，不是 Roslyn 语言服务器。因此它不会完整解析跨文件引用、泛型约束或重载解析；成员推断主要适用于当前文件中可识别的变量声明。短类型名对应的命名空间也可能存在冲突，自动补 using 后请检查结果。
+
+## 数据与隐私
+
+- 编辑、补全和本地文件管理可离线使用。
+- 草稿和文件存放在 WebView 本地存储中。卸载应用或清除应用数据会删除这些内容，重要代码请导出备份。
+- 点击运行时，源码会发送到你配置的本机或局域网编译服务执行。
+- GitHub 导入访问公开仓库和 GitHub API；不会使用 GitHub 登录凭据。
+- 编译服务默认只监听本机。指定 --host 0.0.0.0 后，局域网设备可访问它。
+
+## 构建 APK
+
+构建脚本位于 miccode/apk/build.sh，不使用 Gradle：
+
+~~~bash
+cd miccode/apk
+bash build.sh
+~~~
+
+脚本需要 JDK 21、Android SDK build-tools 34.0.0 和 37.0.0，以及 android-34 platform。脚本开头的 SDK 路径需要按本机环境调整。网页和 symbols.json 会被打包进 APK；修改后需重新构建。
+
+签名密钥在首次构建时生成并被 Git 忽略。保留同一个密钥才能覆盖安装同签名的旧版本；更换密钥后需要先卸载旧 APK。
+
+## 重建符号表
+
+在 miccode 目录运行：
+
+~~~bash
 python build_symbols.py "D:/Unity/Editor/Data/Managed/UnityEngine" -o symbols.json
-```
+~~~
 
-- `build_symbols.py`：解析 Unity 的模块 XML，产出类型 / 成员 / 命名空间索引
-- `bcl_symbols.py`：手写的基础类库补充（含 `Thread`、`IEnumerator`、`Queue` 等）
-- 想加模块就改 `build_symbols.py` 顶部的 `MODULES` 白名单
-
----
-
-## 目录结构
-
-```
-miccode/
-├── index.html           编辑器全部前端逻辑（CodeMirror + 补全 + 悬停 + 文件 + GitHub 拉取）
-├── symbols.json         符号表（14277 条索引项 / 1368 类型）
-├── server.py            本地编译服务（静态托管 + /api/run + /api/info），零依赖
-├── build_symbols.py     从 Unity XML 生成符号表
-├── bcl_symbols.py       手写 BCL 符号 + 命名空间映射
-├── vendor/              CodeMirror 5（已本地化，断网可用）
-└── apk/
-    ├── build.sh         无 Gradle 构建脚本
-    ├── AndroidManifest.xml
-    ├── src/             MainActivity.java（WebView 外壳 + 原生桥）
-    └── res/             图标与字符串
-```
-
-`MainActivity` 提供的原生能力：分屏启动、枚举已安装应用（含真实图标）、文件选择器、文件夹树遍历、导出到下载目录、退出前落盘。
-
-> 安装包不在仓库里，走 [Releases](https://github.com/cxkdz/MiCCode/releases)——二进制文件放进 git 会让每次构建都永久增加仓库体积。
-
----
-
-## 数据与安全
-
-- 草稿和文件存在 **WebView 的 localStorage**（应用私有存储）
-- **崩溃/被杀最多丢最后 0.4 秒**（切后台会立即落盘）；**卸载或清除数据则全部丢失**
-- 重要代码建议「导出」到 `下载/MiCCode/`，这是唯一能扛住卸载和换设备的方式
-- 不收集任何数据、不联网（除你主动使用的 GitHub 拉取）
-
----
-
-## 已知限制
-
-- **Unity 脚本不能运行**，只能编辑 + 补全（缺引擎运行时）
-- 补全是「查表 + 正则推断」，**不是语义分析**：跨文件引用、泛型约束、重载解析都不支持
-- GitHub 拉取只支持**公开仓库**，未登录 API 每小时 60 次
-- 文件夹导入受 Android 目录选择器限制：**点文件夹是进入，必须按底部「使用此文件夹」**
-- mcs 支持到 C# 7；PC 上的旧 `csc.exe` 只到 C# 5（用 `string.Format` 而非 `$""`）
-
----
+- build_symbols.py 从 Unity XML 生成类型、成员与命名空间索引。
+- bcl_symbols.py 补充常用基础类库、Unity 生命周期函数、UGUI 和 TextMesh Pro 符号。
+- 更多 Unity XML 模块可加入 build_symbols.py 顶部的模块列表。
 
 ## 许可
 
-暂未指定许可证。如需使用请先联系作者。
-
----
-
-## 近期修复记录
-
-**v2.7 修复记录**：多选导入在真机上只导一个（`FileChooserParams.getMode()` 识别不了 JS 动态设置的 `multiple`，改为无条件加 `EXTRA_ALLOW_MULTIPLE` 并去掉 chooser 包装）；同名文件静默覆盖（自动改名为 `X(2).cs`）；无头测试自抓到一个注释里的 `*/` 提前闭合导致整段 JS 失效的问题。
-
-同批修复的还有：`string.` / `String.Format` 因 BCL 与 Unity 类型名大小写不一致而整块查不到；「载入示例」在 APK 里因 `confirm()` 被 WebChromeClient 静默拒绝而永远失效（改两段式）；localStorage 写满后静默丢数据；切换文件前不落盘的 400ms 窗口；重启后当前文件名丢失；GitHub 链接带 `#L10` / `?plain=1` 解析失败；导出取 400ms 前旧内容；编译服务晚起后永久判定离线；服务端两种输入触发 500。
-
-
-**v2.8**：重启时恢复当前文件的代码和 C#/Unity 模式；存储不可用或写满时不再假报保存成功；新增 Console.ReadLine() 逐行输入区；服务端增加来源校验、并发限制和输出上限，并停止把未实现的 .NET CLI 误报为可运行。
-
-**v2.9**：新增「整理缩进」按钮与 `Alt+Shift+F` 快捷键；有选区时整理选中行，无选区时整理全文。
-
-**v2.10**：补齐协程周边等待类型、2D/应用生命周期回调、UGUI/TextMesh Pro、常见文件/路径/任务/正则 API；修正 C# `Random` 与 Unity `Random` 的符号冲突，并在识别到 Unity 脚本时启用 Unity API 补全。
+仓库目前没有指定开源许可证。使用或再分发前，请联系作者确认许可。

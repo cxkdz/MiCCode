@@ -205,7 +205,7 @@ python server.py --no-browser
 
 ## 打包成 APK
 
-`apk/MiCCode.apk` 是已经打好签名的安装包（约 770 KB，v2.10 / versionCode 21）。
+`apk/MiCCode.apk` 是已经打好签名的安装包（约 774 KB，v2.10 / versionCode 21）。
 
 ### 界面在 APK 里，编译在 Termux 里
 
