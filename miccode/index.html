@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="MiCCode">
 <meta name="application-name" content="MiCCode">
@@ -64,6 +64,18 @@
     font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px;
     white-space: pre-wrap; word-break: break-word; color: #cfcfcf;
   }
+  #stdinPanel { flex: 0 0 auto; border-bottom: 1px solid #242424; }
+  #stdinPanel summary {
+    padding: 5px 12px; color: #858585; font-size: 11.5px; cursor: pointer;
+    user-select: none;
+  }
+  #stdinPanel summary:hover { color: #c8c8c8; }
+  #stdin {
+    display: block; width: 100%; min-height: 42px; max-height: 110px; resize: vertical;
+    padding: 7px 12px; background: #101010; border: 0; border-top: 1px solid #222;
+    color: #d6d6d6; font: 12px/1.45 Consolas, monospace; outline: none;
+  }
+  #stdin:focus { box-shadow: inset 0 0 0 1px #315b80; }
   .ok { color: #6dd49a; } .bad { color: #ff8b8b; }
 
   footer#sigbar {
@@ -72,7 +84,7 @@
     min-height: 34px; white-space: nowrap; font-size: 12.5px;
   }
   #sigText { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  #hintBtn { flex: 0 0 auto; padding: 3px 12px; font-size: 12px; }
+  #formatBtn, #hintBtn { flex: 0 0 auto; padding: 3px 10px; font-size: 12px; }
   #sigbar .sig { font-family: Consolas, monospace; color: #9fd4ff; }
   #sigbar .doc { color: #8a8a8a; font-size: 12px; }
   #sigbar .muted { color: #666; }
@@ -293,6 +305,7 @@
     #outHead { padding: 3px 9px; font-size: 11.5px; }
     #output { font-size: 11.5px; padding: 6px 9px; }
     footer#sigbar { min-height: 28px; padding: 3px 9px; font-size: 11.5px; }
+    #formatBtn, #hintBtn { padding: 3px 8px; }
     .CodeMirror { font-size: 12.5px; line-height: 1.45; }
     .CodeMirror-linenumber { font-size: 11px; }
   }
@@ -301,6 +314,15 @@
     #badge { display: none; }
     #samples { max-width: 96px; }
     #run { padding: 6px 9px; }
+    header { gap: 5px; padding: 6px 7px; }
+    header button, header select { padding: 6px 8px; font-size: 12px; }
+    #outHead { gap: 6px; padding: 5px 7px; }
+    #outHead button { padding: 3px 6px; font-size: 11px; }
+  }
+  @media (max-width: 360px) {
+    header { flex-wrap: wrap; }
+    header .spacer { display: none; }
+    #badge { display: block; flex: 1 0 100%; }
   }
 </style>
 </head>
@@ -308,7 +330,7 @@
 
 <header>
   <img id="appIcon" src="icon-192.png" alt="MiCCode">
-  <select id="mode" title="切换补全用的 API 集合">
+  <select id="mode" title="切换 C# / Unity API；检测到 Unity 脚本时会自动切换">
     <option value="csharp">C# 脚本</option>
     <option value="unity">Unity 脚本</option>
   </select>
@@ -335,14 +357,19 @@
         <span id="dsBtnText">选搭子</span>
         <span id="dsCaret">▾</span>
       </button>
-      <button id="clearOut">清空</button>
+      <button id="clearOut" title="只清空输出内容，不影响程序输入">清空输出</button>
     </div>
+    <details id="stdinPanel">
+      <summary>程序输入 · 每行对应一次 Console.ReadLine()</summary>
+      <textarea id="stdin" rows="2" maxlength="65536" spellcheck="false" placeholder="例如：张三、18（每行一次 ReadLine）"></textarea>
+    </details>
     <pre id="output">准备就绪。点「运行」编译执行。</pre>
   </div>
 </main>
 
 <footer id="sigbar">
   <div id="sigText"><span class="muted">光标停在标识符上，这里显示签名</span></div>
+  <button id="formatBtn" title="按 C# 语法整理缩进；有选区时只整理选中行（Alt+Shift+F）">整理缩进</button>
   <button id="hintBtn" title="手动弹出补全列表">补全</button>
 </footer>
 
@@ -414,7 +441,7 @@ const KEYWORDS = [
   "get","set","value","yield","await","async","is","as","typeof","sizeof","operator","where","lock"
 ];
 
-const APP_VERSION = "2.6";
+const APP_VERSION = "2.10";
 
 // 白名单：这些类型在候选里排最前，避免被 ParticleCollisionEvent 之类的冷门类型挤掉
 const COMMON_TYPES = [
@@ -422,7 +449,12 @@ const COMMON_TYPES = [
   "Mathf","Debug","Time","Input","Random","Application","Screen","Camera",
   "Rigidbody","Rigidbody2D","Collider","Collider2D","Physics","Physics2D",
   "Animator","Animation","AudioSource","AudioClip","ParticleSystem",
-  "SpriteRenderer","Sprite","ScriptableObject","WaitForSeconds","Coroutine",
+  "SpriteRenderer","Sprite","ScriptableObject","Coroutine","WaitForSeconds",
+  "WaitForSecondsRealtime","WaitUntil","WaitWhile","WaitForEndOfFrame","WaitForFixedUpdate",
+  "Button","Image","RawImage","Text","Toggle","Slider","InputField","Dropdown","ScrollRect",
+  "Selectable","CanvasScaler","GraphicRaycaster","EventSystem","EventTrigger","BaseEventData","PointerEventData",
+  "TMP_Text","TextMeshProUGUI","TextMeshPro","TMP_InputField",
+  "Path","File","Directory","StreamReader","StreamWriter","MemoryStream","Task","Regex","Guid",
   "Space","KeyCode","LayerMask","Ray","RaycastHit","Bounds","Color",
   "Console","String","Math","StringBuilder","List","Dictionary","Array","Convert",
   "IEnumerator","IEnumerable","IDisposable","Queue","Stack","HashSet",
@@ -635,6 +667,38 @@ let MEMBER_POOL = [];         // 去重后的全部成员名，用于"直接打�
 let ready = false;
 
 let MODE = "csharp";          // "csharp" = 只用基础类库；"unity" = 加上 UnityEngine API
+let modeExplicitlySelected = false;
+let FILES = [];
+let CUR_FILE = null;
+let filesPersistOK = true;
+let persistenceOK = true;
+let storageFailureNotified = false;
+let initialCode = null;
+try {
+  const parsedFiles = JSON.parse(storageGet("miccode-files") || "[]");
+  FILES = Array.isArray(parsedFiles)
+    ? parsedFiles.filter(function (f) { return f && typeof f.name === "string" && typeof f.code === "string"; })
+    : [];
+  const draft = storageGet("csharp-pad-code");
+  const currentName = storageGet("miccode-cur-file") || "";
+  const current = FILES.find(function (f) { return f.name === currentName; });
+  if (current) {
+    CUR_FILE = current.name;
+    // 当前文件更新列表失败时，草稿键可能仍保存着更新后的编辑内容，优先恢复它。
+    initialCode = draft !== null ? draft : current.code;
+    const draftMode = storageGet("miccode-draft-mode");
+    MODE = draft !== null && draftMode
+      ? (draftMode === "unity" ? "unity" : "csharp")
+      : (current.mode === "unity" ? "unity" : "csharp");
+  } else {
+    initialCode = draft;
+    MODE = storageGet("miccode-draft-mode") === "unity" ? "unity" : "csharp";
+  }
+  if (initialCode && containsUnityCode(initialCode)) MODE = "unity";
+} catch (e) {
+  filesPersistOK = false;
+  persistenceOK = false;
+}
 let BCL_SET = new Set();      // 基础类库的类型名（来自 symbols.json 的 bcl 字段）
 let NSMAP = {};               // 类型短名 -> 命名空间（自动补 using 用）
 let varsDirty = true;         // 内容变过，变量表需要重算
@@ -646,6 +710,35 @@ const API_BASE = (location.hostname === "miccode.local") ? "http://127.0.0.1:808
 let SERVER_OK = false;        // 编译服务是否在线（不影响编辑和补全）
 
 const $ = (id) => document.getElementById(id);
+function containsUnityCode(code) {
+  const clean = String(code || "")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/.*$/gm, " ")
+    .replace(/@?"(?:\\.|[^"\\])*"/g, '""')
+    .replace(/'(?:\\.|[^'\\])*'/g, "''");
+  return /\busing\s+(?:UnityEngine(?:\.[\w.]+)?|TMPro)\s*;|\b(?:MonoBehaviour|ScriptableObject|Coroutine|WaitForSeconds(?:Realtime)?|WaitUntil|WaitWhile|GameObject|Transform|Vector[234]|Quaternion|Mathf|TextMeshProUGUI|TMP_Text|TMP_InputField|EventSystem|EventTrigger)\b|\byield\s+return\s+new\s+WaitFor/.test(clean);
+}
+function storageGet(key) {
+  try { return localStorage.getItem(key); } catch (e) {
+    filesPersistOK = false; persistenceOK = false; return null;
+  }
+}
+function storageSet(key, value) {
+  try { localStorage.setItem(key, value); return true; } catch (e) {
+    filesPersistOK = false; persistenceOK = false; return false;
+  }
+}
+function storageRemove(key) {
+  try { localStorage.removeItem(key); return true; } catch (e) {
+    filesPersistOK = false; persistenceOK = false; return false;
+  }
+}
+function warnStorageFailure() {
+  if (storageFailureNotified) return;
+  storageFailureNotified = true;
+  toast("自动保存失败：存储空间已满或不可用，请尽快导出代码", true);
+}
+if (!filesPersistOK || !persistenceOK) setTimeout(warnStorageFailure, 0);
 
 /* ============ 工具 ============ */
 function shortType(t) {
@@ -682,6 +775,21 @@ async function loadSymbols() {
     BCL_SET = new Set(data.bcl || []);
     NSMAP = data.ns || {};
 
+    // 别名对齐：手写 BCL 的类型键是 string/object（C# 关键字），
+    // 而 Unity XML 解析出来的是 String/Object，两套键并存导致
+    // string.Format 查不到、String.Format 被误判成 Unity 类型。
+    // 统一补成小写键，并把大写形式也认作同一类型。
+    for (const key of Object.keys(SYM)) {
+      for (const cap of ["String", "Object"]) {
+        if (key.indexOf(cap + ".") === 0) {
+          const low = cap.toLowerCase() + key.slice(cap.length);
+          if (!SYM[low]) SYM[low] = SYM[key];
+        }
+      }
+    }
+    TYPE_SET.add("String"); TYPE_SET.add("Object");
+    BCL_SET.add("string");  BCL_SET.add("object");
+
     for (const key in SYM) {
       const i = key.lastIndexOf(".");
       if (i <= 0) continue;
@@ -700,7 +808,7 @@ async function loadSymbols() {
 }
 
 /* ============ 运行环境 ============ */
-let ENV = { compiler: "", csharp: 0 };
+let ENV = { compiler: "", csharp: 0, stdin: false };
 
 let envTry = 0;
 
@@ -712,7 +820,7 @@ async function loadEnv() {
     SERVER_OK = !!(ENV.compiler && ENV.compiler !== "none");
     envTry = 0;
   } catch (e) {
-    ENV = { compiler: "none", csharp: 0 };
+    ENV = { compiler: "none", csharp: 0, stdin: false };
     SERVER_OK = false;
     // 服务可能在 Termux 里刚启动，前 1 分钟每 5 秒重试一次
     envTry++;
@@ -793,6 +901,12 @@ function scanVars(code) {
 }
 
 function resolveType(name) {
+  // 别名归一化：大小写两种写法指向同一套成员
+  if (name === "String") return "string";
+  if (name === "Object") return "object";
+  if (name === "Random") return MODE === "csharp" ? "SystemRandom" : "Random";
+  if (name === "File") return "SystemFile";
+  if (name === "Directory") return "SystemDirectory";
   if (TYPE_SET.has(name)) return name;
   if (VARS[name]) return VARS[name];
   return null;
@@ -800,7 +914,25 @@ function resolveType(name) {
 
 // C# 模式下把 UnityEngine 的东西藏起来；用户自己写的类（不在符号表里）照常放行
 function isUnityType(t) {
+  if (t === "SystemRandom") return MODE === "unity";
+  if (t === "SystemFile" || t === "SystemDirectory") return false;
   return MODE === "csharp" && TYPE_SET.has(t) && !BCL_SET.has(t);
+}
+
+function isUnityOwner(t) {
+  if (t === "Random") return MODE === "csharp";
+  if (t === "File" || t === "Directory") return true;
+  if (t === "SystemRandom") return MODE === "unity";
+  if (t === "SystemFile" || t === "SystemDirectory") return false;
+  return isUnityType(t);
+}
+
+function namespaceFor(t) {
+  // Unity XML 同名类型和 BCL 同名类型共享短名；常用 Unity 静态类应在 Unity 模式补 UnityEngine。
+  if (t === "Random") return MODE === "unity" ? "UnityEngine" : "System";
+  if (t === "File" || t === "Directory" || t === "SystemFile" || t === "SystemDirectory") return "System.IO";
+  if (MODE === "unity" && (t === "Input" || t === "Screen")) return "UnityEngine";
+  return NSMAP[t] || NSMAP[t && t.split("<")[0]] || null;
 }
 
 // 补全前确保变量表是最新的（change 有 400ms 防抖，直接调 showHint 会用到旧数据）
@@ -872,7 +1004,7 @@ function csharpHint(cm) {
   // 2) 常用类型（白名单，按使用频率排）
   for (const t of COMMON_TYPES) {
     if (isUnityType(t)) continue;
-    if (t.toLowerCase().startsWith(lp)) push(t, "hint-type", null, NSMAP[t]);
+    if (t.toLowerCase().startsWith(lp)) push(t, "hint-type", null, namespaceFor(t));
   }
   // 3) 当前文件的局部变量
   for (const v in VARS) {
@@ -885,7 +1017,7 @@ function csharpHint(cm) {
     const pool = MEMBERS[bt];
     if (!pool) continue;
     pool.forEach((mem) => {
-      if (mem.toLowerCase().startsWith(lp)) push(mem, "hint-member", null, NSMAP[bt]);
+      if (mem.toLowerCase().startsWith(lp)) push(mem, "hint-member", null, namespaceFor(bt));
     });
   }
 
@@ -896,14 +1028,16 @@ function csharpHint(cm) {
     if (COMMON_SET.has(t) || isUnityType(t)) continue;                        // 第 2 步已入列
     const base = t.indexOf("<") > 0 ? t.slice(0, t.indexOf("<")) : t;
     if (/^[A-Z]{3,}/.test(t) && !ACRO.has(t)) tail.push(t); // PIX / PCMxxx 这类全大写缩写沉底
-    else push(base, "hint-type", t, NSMAP[base] || NSMAP[t]);
+    else push(base, "hint-type", t, namespaceFor(base) || namespaceFor(t));
   }
 
   // 6) 全局成员名（至少打 2 个字符才开，否则噪声太大）
   if (p.length >= 2) {
     for (const e of MEMBER_POOL) {
-      if (isUnityType(e.owner)) continue;
-      if (e.name.toLowerCase().startsWith(lp)) push(e.name, "hint-member", null, NSMAP[e.owner]);
+      const owners = e.owners || [e.owner];
+      const owner = owners.find(function (candidate) { return !isUnityOwner(candidate); });
+      if (!owner) continue;
+      if (e.name.toLowerCase().startsWith(lp)) push(e.name, "hint-member", null, namespaceFor(owner));
     }
   }
 
@@ -949,8 +1083,10 @@ function lookupAt(cm, line, ch) {
   // 类型名，但用户悬停时想要的肯定是 MonoBehaviour 生命周期的解释
   const hit = MEMBER_POOL.find((e) => e.name === word);
   if (hit) {
-    let mOwner = hit.owner;
-    if (hit.owners && hit.owners.indexOf("MonoBehaviour") >= 0) mOwner = "MonoBehaviour";
+    const owners = hit.owners || [hit.owner];
+    let mOwner = owners.indexOf("MonoBehaviour") >= 0 ? "MonoBehaviour" : null;
+    if (mOwner && isUnityOwner(mOwner)) mOwner = null;
+    if (!mOwner) mOwner = owners.find(function (candidate) { return !isUnityOwner(candidate); });
     const hh = SYM[mOwner + "." + word];
     if (hh) {
       return { title: mOwner + "." + word, hits: hh, owner: mOwner };
@@ -1053,6 +1189,35 @@ const updateSigbar = debounce(function () {
 }, 120);
 
 /* ============ 编辑器 ============ */
+function formatIndentation(editor) {
+  const c = editor || cm;
+  const before = c.getValue();
+  const ranges = c.listSelections();
+  const selectedRanges = ranges.filter(function (r) {
+    return CodeMirror.cmpPos(r.anchor, r.head) !== 0;
+  });
+  const lines = new Set();
+
+  if (!selectedRanges.length) {
+    for (let line = 0; line < c.lineCount(); line++) lines.add(line);
+  } else {
+    selectedRanges.forEach(function (r) {
+      const from = CodeMirror.cmpPos(r.anchor, r.head) <= 0 ? r.anchor : r.head;
+      const to = from === r.anchor ? r.head : r.anchor;
+      let last = to.line;
+      if (last > from.line && to.ch === 0) last--;
+      for (let line = from.line; line <= last; line++) lines.add(line);
+    });
+  }
+
+  c.operation(function () {
+    Array.from(lines).sort(function (a, b) { return a - b; })
+      .forEach(function (line) { c.indentLine(line, "smart"); });
+  });
+  c.focus();
+  toast(c.getValue() === before ? "缩进已经整齐" : "已整理缩进");
+}
+
 const cm = CodeMirror.fromTextArea($("code"), {
   value: STARTERS.csharp,
   mode: "text/x-csharp",
@@ -1073,13 +1238,18 @@ const cm = CodeMirror.fromTextArea($("code"), {
     },
     "Shift-Tab": function (c) { c.indentSelection("subtract"); },
     "Ctrl-Space": "autocomplete",
-    "Cmd-Space": "autocomplete"
+    "Cmd-Space": "autocomplete",
+    "Alt-Shift-F": function (c) { formatIndentation(c); }
   }
 });
 
+$("formatBtn").addEventListener("click", function () {
+  formatIndentation(cm);
+});
+
 // 首次进入填内容
-const saved = localStorage.getItem("csharp-pad-code");
-cm.setValue(saved || STARTERS.csharp);
+$("mode").value = MODE;
+cm.setValue(initialCode !== null ? initialCode : STARTERS[MODE]);
 
 /* 输入时自动弹补全。
    不用 inputRead —— 它要求 change.origin === "+input"，
@@ -1102,17 +1272,23 @@ cm.on("change", function (c, change) {
    退出、切后台、崩溃前都会被调用，尽量把丢失窗口压到 0 */
 function flushNow() {
   const code = cm.getValue();
-  try { localStorage.setItem("csharp-pad-code", code); } catch (e) {}
+  let ok = storageSet("csharp-pad-code", code);
+  ok = storageSet("miccode-cur-file", CUR_FILE || "") && ok;
+  ok = storageSet("miccode-draft-mode", MODE) && ok;
   if (CUR_FILE) {
     const f = FILES.find((x) => x.name === CUR_FILE);
     if (f) {
       f.code = code;
+      f.mode = MODE;
       f.ts = Date.now();
-      try { localStorage.setItem("miccode-files", JSON.stringify(FILES)); } catch (e) {}
+      ok = storageSet("miccode-files", JSON.stringify(FILES)) && ok;
     }
   }
-  scanVars(code);
-  varsDirty = false;
+  filesPersistOK = ok;
+  persistenceOK = ok;
+  if (!ok) warnStorageFailure();
+  if (code.length < 400000) { scanVars(code); varsDirty = false; }
+  else varsDirty = true;   // 大文件延迟到补全/签名查询时再扫描
   dirty = false;
 }
 
@@ -1121,6 +1297,12 @@ const onCodeChange = debounce(flushNow, 400);
 cm.on("change", function () {
   varsDirty = true;
   dirty = true;
+  if (!modeExplicitlySelected && MODE === "csharp" && containsUnityCode(cm.getValue())) {
+    MODE = "unity";
+    $("mode").value = MODE;
+    refreshBadge();
+    toast("检测到 Unity 脚本，已启用 Unity API 补全");
+  }
   onCodeChange();
 });
 
@@ -1129,9 +1311,21 @@ window.__flush = flushNow;                 // 切后台时静默落盘
 window.__exitState = function () {         // 返回键：先落盘，再报告状态
   flushNow();
   if (!cm.getValue().trim()) return "empty";
+  // #5：没存下不能静默退出，必须走询问分支提醒用户
+  if (!filesPersistOK || !persistenceOK) return "unnamed";
   return CUR_FILE ? "named" : "unnamed";
 };
 window.__openFilePanel = function () { openFilePanel(true); };
+window.__closeTop = function () {
+  // 先关文件面板、搭子选择器，返回 true 表示"已消费"这次返回键
+  if ($("fileWrap").classList.contains("open")) {
+    $("fileWrap").classList.remove("open"); return true;
+  }
+  if ($("pickWrap").classList.contains("open")) {
+    $("pickWrap").classList.remove("open"); return true;
+  }
+  return false;
+};
 
 cm.on("cursorActivity", updateSigbar);
 
@@ -1180,8 +1374,15 @@ cm.getWrapperElement().addEventListener("touchstart", function (e) {
 async function doRun() {
   const btn = $("run"), out = $("output"), info = $("runInfo");
   const code = cm.getValue();
+  const stdinText = $("stdin").value;
   if (!code.trim()) return;
-
+  if (new Blob([stdinText]).size > 64 * 1024) {
+    out.textContent = "程序输入过长，UTF-8 编码后不能超过 64 KB。";
+    out.className = "bad";
+    info.textContent = "输入超限";
+    info.className = "bad";
+    return;
+  }
   if (MODE === "unity") {
     out.textContent =
       "Unity 脚本无法在这里运行。\n\n" +
@@ -1195,6 +1396,11 @@ async function doRun() {
   }
 
   if (!SERVER_OK) {
+    // 服务可能在冷启动后 60 秒才就绪，探测重试早就停了 —— 这里再试一次
+    out.textContent = "正在重新探测编译服务…";
+    info.textContent = "";
+    await loadEnv();
+    if (SERVER_OK) { out.textContent = "服务已就绪，请再点一次「运行」。"; info.textContent = ""; return; }
     out.textContent =
       "现在没有连上编译服务，只能编辑。\n\n" +
       "要让它能运行，二选一：\n" +
@@ -1203,6 +1409,14 @@ async function doRun() {
       "补全、悬停签名都不依赖服务，现在就能用。";
     out.className = "";
     info.textContent = "离线 · 只能编辑";
+    info.className = "bad";
+    return;
+  }
+
+  if (stdinText && ENV.stdin !== true) {
+    out.textContent = "当前编译服务版本较旧，不支持程序输入。请把最新的 server.py 更新到运行环境后重启服务。";
+    out.className = "bad";
+    info.textContent = "请更新编译服务";
     info.className = "bad";
     return;
   }
@@ -1216,9 +1430,12 @@ async function doRun() {
     const r = await fetch(API_BASE + "/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: code })
+      body: JSON.stringify({ code: code, stdin: stdinText })
     });
-    const d = await r.json();
+    let d;
+    try { d = await r.json(); }
+    catch (parseError) { throw new Error("服务返回了无法识别的响应"); }
+    if (!r.ok) throw new Error(d.err || "服务返回 HTTP " + r.status);
     const ms = Math.round(performance.now() - t0);
 
     if (d.ok) {
@@ -1233,12 +1450,12 @@ async function doRun() {
       info.className = "bad";
     }
   } catch (e) {
-    out.textContent = "连不上本地服务。\n\n" +
-      "确认：\n" +
-      "1) 终端里 python server.py 还在跑\n" +
-      "2) 地址是 http://127.0.0.1:8080\n\n" +
-      "原始错误：" + e.message;
+    out.textContent = "运行失败：" + e.message +
+      (e.message === "Failed to fetch" || e.message === "NetworkError when attempting to fetch resource."
+        ? "\n\n确认本地编译服务仍在运行，并检查网络连接。" : "");
     out.className = "bad";
+    info.textContent = "运行失败";
+    info.className = "bad";
   } finally {
     btn.disabled = false;
   }
@@ -1247,11 +1464,14 @@ async function doRun() {
 $("run").addEventListener("click", doRun);
 $("clearOut").addEventListener("click", function () {
   $("output").textContent = "";
+  $("output").className = "";
   $("runInfo").textContent = "";
+  $("runInfo").className = "";
 });
 
 /* ============ 模式切换：C# 基础库 / Unity API ============ */
 $("mode").addEventListener("change", function () {
+  modeExplicitlySelected = true;
   const next = this.value;
   const prevStarter = STARTERS[MODE];
   // 只有内容还是原模板时才自动换，避免吞掉正在写的东西
@@ -1263,6 +1483,7 @@ $("mode").addEventListener("change", function () {
   ensureVars(cm);
   refreshBadge();
   updateSigbar();
+  flushNow();
   cm.focus();
 });
 
@@ -1296,7 +1517,7 @@ function presetFor(pkg) {
 
 /* 图标渲染，优先级：用户自传 > 系统里的真实图标 > 品牌色 + 字母 */
 function appIconHTML(pkg, letter, color, icon) {
-  const custom = localStorage.getItem("miccode-icon-" + pkg);
+  const custom = storageGet("miccode-icon-" + pkg);
   if (custom) return '<img src="' + custom + '" alt="">';
   if (icon) return '<img src="' + icon + '" alt="">';
   const p = presetFor(pkg);
@@ -1306,8 +1527,8 @@ function appIconHTML(pkg, letter, color, icon) {
          "background:" + bg + ';color:#fff;font-size:12.5px;font-weight:600">' + esc(ch) + "</span>";
 }
 
-let SPLIT_PKG = localStorage.getItem("miccode-split-pkg") || "";
-let SPLIT_NAME = localStorage.getItem("miccode-split-name") || "";
+let SPLIT_PKG = storageGet("miccode-split-pkg") || "";
+let SPLIT_NAME = storageGet("miccode-split-name") || "";
 let dsLongPressed = false;
 let dsPressTimer = null;
 let pressX = 0, pressY = 0;
@@ -1387,7 +1608,7 @@ function pickIconFor(pkg) {
         const ctx = c.getContext("2d");
         ctx.drawImage(img, 0, 0, 64, 64);
         try {
-          localStorage.setItem("miccode-icon-" + pkg, c.toDataURL("image/png"));
+          if (!storageSet("miccode-icon-" + pkg, c.toDataURL("image/png"))) throw new Error("storage full");
         } catch (e) {
           toast("图片太大，存不下", true);
           return;
@@ -1550,11 +1771,11 @@ function renderPickList(q) {
 function chooseApp(pkg, name, icon) {
   SPLIT_PKG = pkg;
   SPLIT_NAME = name || pkg;
-  localStorage.setItem("miccode-split-pkg", SPLIT_PKG);
-  localStorage.setItem("miccode-split-name", SPLIT_NAME);
+  storageSet("miccode-split-pkg", SPLIT_PKG);
+  storageSet("miccode-split-name", SPLIT_NAME);
   // 把真实图标存下来，工具栏按钮上也能显示（只存选中的那一个，几十 KB）
   if (icon) {
-    try { localStorage.setItem("miccode-icon-" + pkg, icon); } catch (e) { }
+    storageSet("miccode-icon-" + pkg, icon);
   }
   $("pickWrap").classList.remove("open");
   refreshSplitBtn();
@@ -1575,7 +1796,7 @@ function doSplit() {
       if (r === "notfound") {
         // false = 系统里没有这个包，绑定已失效，清掉让下次重新选
         SPLIT_PKG = "";
-        localStorage.removeItem("miccode-split-pkg");
+        storageRemove("miccode-split-pkg");
         refreshSplitBtn();
         toast("没找到「" + (SPLIT_NAME || "这个应用") + "」，可能没装或被卸载了，点 ▾ 重新选", true);
       } else if (r === "error") {
@@ -1646,9 +1867,6 @@ $("pickInput").addEventListener("keydown", function (e) {
 refreshSplitBtn();
 
 /* ============ 文件：新建 / 保存 / 打开 / 删除 ============ */
-let FILES = [];
-try { FILES = JSON.parse(localStorage.getItem("miccode-files") || "[]") || []; } catch (e) { FILES = []; }
-let CUR_FILE = null;   // null = 未命名草稿
 let dirty = false;     // 有未落盘的改动（仅用于退出判断）
 
 function refreshCurFile() {
@@ -1656,40 +1874,54 @@ function refreshCurFile() {
 }
 
 function persistFiles() {
-  try { localStorage.setItem("miccode-files", JSON.stringify(FILES)); }
-  catch (e) { toast("存不下了：localStorage 已满", true); }
+  const ok = storageSet("miccode-files", JSON.stringify(FILES));
+  filesPersistOK = ok;
+  persistenceOK = persistenceOK && ok;
+  if (!ok) warnStorageFailure();
+  return ok;
 }
 
 /* 保存：无同名则新建，有则覆盖。未写 .cs 自动补 */
 function saveFile(rawName) {
+  flushNow();   // #9：切换前先落盘，堵住 400ms 防抖窗口
   let name = (rawName || "").trim();
   if (!name) { toast("先起个文件名", true); $("fileName").focus(); return; }
   if (!/\.cs$/i.test(name)) name += ".cs";
+  const previousFiles = FILES.map(function (f) { return Object.assign({}, f); });
+  const previousCur = CUR_FILE;
   const now = Date.now();
   const exist = FILES.find((f) => f.name === name);
   if (exist) {
     exist.code = cm.getValue(); exist.mode = MODE; exist.ts = now;
-    toast("已覆盖保存 " + name);
   } else {
     FILES.push({ name: name, code: cm.getValue(), mode: MODE, ts: now });
-    toast("已保存 " + name);
   }
-  persistFiles();
+  if (!persistFiles()) {
+    FILES = previousFiles;
+    CUR_FILE = previousCur;
+    refreshCurFile();
+    renderFileList();
+    return;
+  }
   CUR_FILE = name;
+  flushNow();
   refreshCurFile();
   renderFileList();
+  toast(exist && name !== previousCur ? "已覆盖另一个文件 " + name : "已保存 " + name,
+        !!(exist && name !== previousCur));
 }
 
 function openFile(f) {
+  flushNow();   // #9：切换前先落盘，堵住 400ms 防抖窗口
   CUR_FILE = f.name;
   cm.setValue(f.code || "");
-  if (f.mode && f.mode !== MODE) {
-    MODE = f.mode;
-    $("mode").value = MODE;
-    refreshBadge();
-  }
+  MODE = f.mode === "unity" ? "unity" : "csharp";
+  if (!modeExplicitlySelected && containsUnityCode(f.code || "")) MODE = "unity";
+  $("mode").value = MODE;
+  refreshBadge();
   varsDirty = true;
   scanVars(cm.getValue());
+  flushNow();
   refreshCurFile();
   $("fileWrap").classList.remove("open");
   cm.focus();      // 同 importText：面板关掉后让按键立刻落到编辑器
@@ -1697,6 +1929,7 @@ function openFile(f) {
 }
 
 function newFile() {
+  flushNow();   // #9：切换前先落盘，堵住 400ms 防抖窗口
   CUR_FILE = null;
   cm.setValue("");
   varsDirty = true;
@@ -1704,6 +1937,7 @@ function newFile() {
   refreshCurFile();
   $("fileWrap").classList.remove("open");
   $("fileName").value = "";
+  flushNow();
   cm.focus();
   toast("新建空白文档，写完记得保存");
 }
@@ -1748,9 +1982,15 @@ function renderFileList() {
     del.addEventListener("click", (e) => {
       e.stopPropagation();
       if (del.dataset.armed) {
+        const previousFiles = FILES;
         FILES = FILES.filter((x) => x.name !== f.name);
-        persistFiles();
-        if (CUR_FILE === f.name) { CUR_FILE = null; refreshCurFile(); }
+        if (!persistFiles()) { FILES = previousFiles; renderFileList(); return; }
+        if (CUR_FILE === f.name) {
+          CUR_FILE = null;
+          storageSet("miccode-cur-file", "");
+          refreshCurFile();
+          flushNow();
+        }
         renderFileList();
         toast("已删除 " + f.name);
       } else {
@@ -1816,9 +2056,18 @@ $("fileClearAll").addEventListener("click", function () {
 
   clearTimeout(btn._t);
   const n = FILES.length;
+  const previousFiles = FILES;
   FILES = [];
-  persistFiles();
+  if (!persistFiles()) {
+    FILES = previousFiles;
+    btn.dataset.armed = "";
+    btn.textContent = "清空";
+    btn.classList.remove("danger");
+    renderFileList();
+    return;
+  }
   if (CUR_FILE) { CUR_FILE = null; refreshCurFile(); }   // 内容留在编辑器里当草稿
+  flushNow();
   btn.dataset.armed = "";
   btn.textContent = "清空";
   btn.classList.remove("danger");
@@ -1827,7 +2076,8 @@ $("fileClearAll").addEventListener("click", function () {
 });
 
 /* 导入核心：文本 → 去BOM → 规范名 → 猜模式 → 进列表 → 载入编辑器 */
-function importText(rawName, text) {
+function importText(rawName, text, fallbackMode) {
+  flushNow();   // #9：切换前先落盘，堵住 400ms 防抖窗口
   text = String(text || "");
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);   // 去 UTF-8 BOM
   if (!text.trim()) return "empty";
@@ -1835,15 +2085,32 @@ function importText(rawName, text) {
   let name = (rawName || "导入.cs").replace(/[\\/:*?"<>|]/g, "_");
   if (!/\.cs$/i.test(name)) name += ".cs";
   // 猜模式：有 Unity 痕迹就切 Unity，否则保持当前模式
-  const mode = /UnityEngine|MonoBehaviour|IEnumerator/.test(text) ? "unity" : MODE;
+  const mode = containsUnityCode(text)
+    ? "unity" : (fallbackMode || MODE);
 
-  const exist = FILES.find((f) => f.name === name);
+  let exist = FILES.find((f) => f.name === name);
+  // #6：同名但内容不同 → 自动加序号，防止文件夹导入时互相静默覆盖
+  if (exist && exist.code !== text) {
+    const stem = name.replace(/\.cs$/i, "");
+    let n = 2, candidate;
+    do { candidate = stem + "(" + n++ + ").cs"; }
+    while (FILES.some((f) => f.name === candidate));
+    name = candidate;
+    exist = null;
+  }
+  const previousFiles = FILES.map(function (f) { return Object.assign({}, f); });
+  const previousCur = CUR_FILE;
   if (exist) {
     exist.code = text; exist.mode = mode; exist.ts = Date.now();
   } else {
     FILES.push({ name: name, code: text, mode: mode, ts: Date.now() });
   }
-  persistFiles();
+  if (!persistFiles()) {
+    FILES = previousFiles;
+    CUR_FILE = previousCur;
+    refreshCurFile();
+    return "storage_error";
+  }
 
   CUR_FILE = name;
   cm.setValue(text);
@@ -1854,21 +2121,57 @@ function importText(rawName, text) {
   scanVars(text);
   refreshCurFile();
   cm.focus();      // 外接键盘场景：不聚焦的话，面板关掉后按键无处可去，像"无法编辑"
+  flushNow();
   return exist ? "overwrite" : "new";
 }
 
-/* 导入设备上的 .cs / .txt：读成文本后走 importText */
+/* 批量导入核心：过滤扩展名 → 逐个读成文本 → importText。
+   返回 Promise<{ok,bad,skipped,lastName}>，便于测试和多条路径复用。
+   注意：APK 的 Intent 放开了全部文件类型，扩展名校验只能在这里做。 */
+function importFiles(fileList) {
+  return new Promise(function (resolve) {
+    let fs = Array.from(fileList || []);
+    const skipped = fs.filter(function (f) { return !/\.(cs|txt)$/i.test(f.name || ""); }).length;
+    fs = fs.filter(function (f) { return /\.(cs|txt)$/i.test(f.name || ""); });
+    if (!fs.length) { resolve({ ok: 0, bad: 0, skipped: skipped, lastName: null }); return; }
+
+    let index = 0, ok = 0, bad = 0, lastName = null;
+    const fallbackMode = MODE;
+    function next() {
+      if (index >= fs.length) {
+        renderFileList();
+        refreshCurFile();
+        resolve({ ok: ok, bad: bad, skipped: skipped, lastName: lastName });
+        return;
+      }
+      const f = fs[index++];
+      const fr = new FileReader();
+      fr.onload = function () {
+        try {
+          const t = typeof fr.result === "string" ? fr.result : "";
+          const r = importText(f.name, t, fallbackMode);
+          if (r === "empty" || r === "storage_error") bad++; else { ok++; lastName = CUR_FILE; }
+        } catch (e) { bad++; }
+        next();
+      };
+      fr.onerror = function () { bad++; next(); };
+      try { fr.readAsText(f, "utf-8"); } catch (e) { bad++; next(); }
+    }
+    next();
+  });
+}
+
+/* 单文件导入：走同一套过滤与错误收尾 */
 function importFile(file) {
   if (!file) return;
-  const fr = new FileReader();
-  fr.onload = function () {
-    const r = importText(file.name, fr.result);
-    if (r === "empty") { toast("文件是空的", true); return; }
+  importFiles([file]).then(function (r) {
+    if (!r.ok) {
+      toast(r.skipped ? "只支持 .cs / .txt 文件" : "文件是空的或读取失败", true);
+      return;
+    }
     $("fileWrap").classList.remove("open");
-    toast(r === "overwrite" ? "已导入并覆盖同名文件 " + CUR_FILE : "已导入 " + CUR_FILE);
-  };
-  fr.onerror = function () { toast("读文件失败", true); };
-  fr.readAsText(file, "utf-8");
+    toast("已导入 " + r.lastName);
+  });
 }
 
 /* 文件夹批量导入：APK 原生枚举结果回传这里 */
@@ -1877,10 +2180,17 @@ window.__onFolder = function (data) {
     toast("这个文件夹里没有找到 .cs 文件", true);
     return;
   }
-  data.files.forEach(function (x) { importText(x.name, x.code); });
+  let imported = 0, failed = 0;
+  const fallbackMode = MODE;
+  data.files.forEach(function (x) {
+    const result = importText(x.name, x.code, fallbackMode);
+    if (result === "empty" || result === "storage_error") failed++; else imported++;
+  });
   renderFileList();
   refreshCurFile();
-  toast("已导入 " + data.files.length + " 个文件" +
+  if (!imported) { toast("导入失败：没有文件能保存", true); return; }
+  toast("已导入 " + imported + " 个文件" +
+        (failed ? "，失败 " + failed + " 个" : "") +
         (data.cut ? "（超过 60 个，只收了前面的）" : ""));
 };
 
@@ -1890,24 +2200,13 @@ $("fileImport").addEventListener("click", function () {
   inp.multiple = true;   // 支持多选：长按第一个文件后可勾选多个
   // 系统选择器认不出 .cs 的 MIME，APK 端 Intent 已放开全部文件，前端校验扩展名
   inp.accept = ".cs,text/plain,.txt";
-  inp.addEventListener("change", function () {
-    const fs = Array.from(inp.files || []);
-    if (!fs.length) return;
-    if (fs.length === 1) { importFile(fs[0]); return; }   // 单选走原路径（含关闭面板）
-    let done = 0;
-    fs.forEach(function (f) {
-      const fr = new FileReader();
-      fr.onload = function () {
-        importText(f.name, fr.result);
-        if (++done === fs.length) {
-          renderFileList();
-          refreshCurFile();
-          toast("已导入 " + fs.length + " 个文件");
-        }
-      };
-      fr.onerror = function () { if (++done === fs.length) toast("部分文件读取失败", true); };
-      fr.readAsText(f, "utf-8");
-    });
+  inp.addEventListener("change", async function () {
+    const r = await importFiles(inp.files);
+    if (!r.ok) { toast("没找到可用的 .cs / .txt 文件", true); return; }
+    $("fileWrap").classList.remove("open");
+    const skipped = r.bad + r.skipped;
+    toast(r.ok === 1 ? "已导入 " + r.lastName
+                     : "已导入 " + r.ok + " 个文件" + (skipped ? "，跳过 " + skipped + " 个" : ""));
   });
   inp.click();
 });
@@ -1946,13 +2245,16 @@ $("fileFolder").addEventListener("click", function () {
 function exportOne(name) {
   const f = FILES.find((x) => x.name === name);
   if (!f) return;
+  // #12：当前文件用编辑器里的实时内容，不取 400ms 前的 FILES 快照
+  const code = (f.name === CUR_FILE) ? cm.getValue() : (f.code || "");
   if (window.MiCCodeNative && window.MiCCodeNative.exportFile) {
-    const r = String(window.MiCCodeNative.exportFile(f.name, f.code || ""));
-    toast(r.indexOf("ok") === 0 ? "已导出到 下载/MiCCode/" + f.name
+    const r = String(window.MiCCodeNative.exportFile(f.name, code));
+    const realName = r.indexOf("ok:") === 0 ? r.slice(3) : f.name;
+    toast(r.indexOf("ok") === 0 ? "已导出到 下载/MiCCode/" + realName
                                : "导出失败（" + r + "）", r.indexOf("ok") !== 0);
     return;
   }
-  const blob = new Blob([f.code || ""], { type: "text/plain" });
+  const blob = new Blob([code], { type: "text/plain" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = f.name;
@@ -1971,7 +2273,8 @@ refreshCurFile();
    https://github.com/owner/repo/blob/branch/path/x.cs    → 单个文件
    https://raw.githubusercontent.com/owner/repo/branch/x.cs → 单个文件 */
 function parseGh(raw) {
-  const u = (raw || "").trim().replace(/\.git$/, "");
+  // 去掉行号锚点(#L10-L20)与查询串(?plain=1)；带斜杠的分支名先按仓库默认分支处理
+  const u = (raw || "").trim().split("#")[0].split("?")[0].replace(/\.git$/, "");
   let m = u.match(/^https?:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
   if (m) return { kind: "raw", owner: m[1], repo: m[2], branch: m[3], path: m[4] };
   m = u.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)(?:\/(blob|tree)\/([^/]+)(?:\/(.*?))?)?\/?$/);
@@ -2001,7 +2304,9 @@ async function ghImport(url) {
       const t = await r.text();
       const res = importText(baseName(p.path), t);
       if (res === "empty") { toast("文件是空的", true); return; }
+      if (res === "storage_error") return;
       renderFileList(); refreshCurFile();
+      $("fileWrap").classList.remove("open");
       toast("已拉取 " + CUR_FILE);
     } catch (e) {
       toast("网络错误：" + e.message + "（可能需要代理）", true);
@@ -2128,14 +2433,27 @@ Object.keys(SAMPLES).forEach(function (k) {
   o.textContent = k;
   sel.appendChild(o);
 });
+let sampleArmed = null;
 sel.addEventListener("change", function () {
   const k = sel.value;
   if (!k || !SAMPLES[k]) return;
-  if (cm.getValue().trim() && !confirm("替换当前代码为示例「" + k + "」？")) {
+  // 两段式：确认按钮再点一次才替换。APK 的 WebView 装了 WebChromeClient 但没
+  // 实现 onJsConfirm，confirm() 会静默返回 false —— 示例在 APK 里永远载不进来
+  if (cm.getValue().trim() && sampleArmed !== k) {
+    sampleArmed = k;
+    toast("再点一次「" + k + "」确认替换当前代码", true);
+    setTimeout(function () { sampleArmed = null; }, 3000);
     sel.value = "";
+    sel.selectedIndex = 0;
     return;
   }
+  sampleArmed = null;
+  MODE = containsUnityCode(SAMPLES[k]) ? "unity" : "csharp";
+  $("mode").value = MODE;
+  refreshBadge();
   cm.setValue(SAMPLES[k]);
+  scanVars(cm.getValue());
+  flushNow();
   cm.focus();
   sel.value = "";
 });

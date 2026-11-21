@@ -48,7 +48,7 @@ step "3/7 编译 Java (javac)"
 [ -f build/classes/com/miccode/app/MainActivity.class ] || fail "javac 没有产出 class"
 
 step "4/7 转 dex (d8)"
-"$D8BT/d8.bat" --lib "$PLATFORM" --min-api 24 --output build/dex \
+"$D8BT/d8.bat" --lib "$PLATFORM" --min-api 21 --output build/dex \
   build/classes/com/miccode/app/*.class || fail "d8 失败"
 [ -f build/dex/classes.dex ] || fail "没有生成 classes.dex"
 

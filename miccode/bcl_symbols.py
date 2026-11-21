@@ -35,6 +35,7 @@ STRING = [
     ("ToLower", ["()"], "转小写"),
     ("Trim", ["()"], "去掉首尾空白"),
     ("Contains", ["(string value)"], "是否包含子串"),
+    ("IsNullOrWhiteSpace", ["(string value)"], "静态：null、空串或全空白都返回 true"),
     ("StartsWith", ["(string value)"], "是否以某串开头"),
     ("EndsWith", ["(string value)"], "是否以某串结尾"),
     ("ToString", ["()"], "转成字符串"),
@@ -310,6 +311,294 @@ BOOL_MEMBERS = [
     ("ToString", ["()"], "转成 \"True\"/\"False\""),
 ]
 
+PATH_MEMBERS = [
+    ("Combine", ["(string path1, string path2)", "(params string[] paths)"], "静态：安全拼接路径"),
+    ("GetFileName", ["(string path)"], "静态：取文件名"),
+    ("GetFileNameWithoutExtension", ["(string path)"], "静态：取不含扩展名的文件名"),
+    ("GetDirectoryName", ["(string path)"], "静态：取目录部分"),
+    ("GetExtension", ["(string path)"], "静态：取扩展名，包含点号"),
+    ("ChangeExtension", ["(string path, string extension)"], "静态：替换扩展名"),
+    ("GetFullPath", ["(string path)"], "静态：转成绝对路径"),
+    ("GetTempPath", ["()"], "静态：取临时目录"),
+    ("GetTempFileName", ["()"], "静态：创建临时文件并返回路径"),
+    ("DirectorySeparatorChar", [""], "目录分隔符"),
+    ("AltDirectorySeparatorChar", [""], "备用目录分隔符"),
+]
+
+FILE_MEMBERS = [
+    ("Exists", ["(string path)"], "静态：文件是否存在"),
+    ("ReadAllText", ["(string path)", "(string path, Encoding encoding)"], "静态：读取整个文本文件"),
+    ("WriteAllText", ["(string path, string contents)", "(string path, string contents, Encoding encoding)"], "静态：写入整个文本文件"),
+    ("AppendAllText", ["(string path, string contents)"], "静态：追加文本到文件"),
+    ("ReadAllLines", ["(string path)"], "静态：逐行读取，返回 string[]"),
+    ("WriteAllLines", ["(string path, string[] contents)"], "静态：逐行写入"),
+    ("AppendAllLines", ["(string path, IEnumerable<string> contents)"], "静态：逐行追加"),
+    ("ReadAllBytes", ["(string path)"], "静态：读取全部字节"),
+    ("WriteAllBytes", ["(string path, byte[] bytes)"], "静态：写入全部字节"),
+    ("Copy", ["(string sourceFileName, string destFileName)", "(string sourceFileName, string destFileName, bool overwrite)"], "静态：复制文件"),
+    ("Move", ["(string sourceFileName, string destFileName)"], "静态：移动或重命名文件"),
+    ("Delete", ["(string path)"], "静态：删除文件；文件不存在时不抛异常"),
+    ("OpenRead", ["(string path)"], "静态：以只读方式打开文件流"),
+    ("OpenWrite", ["(string path)"], "静态：打开文件用于写入"),
+]
+
+DIRECTORY_MEMBERS = [
+    ("Exists", ["(string path)"], "静态：目录是否存在"),
+    ("CreateDirectory", ["(string path)"], "静态：创建目录及缺失的父目录"),
+    ("Delete", ["(string path)", "(string path, bool recursive)"], "静态：删除目录，可递归删除"),
+    ("GetFiles", ["(string path)", "(string path, string searchPattern)"], "静态：枚举文件路径"),
+    ("GetDirectories", ["(string path)", "(string path, string searchPattern)"], "静态：枚举子目录路径"),
+    ("GetFileSystemEntries", ["(string path)"], "静态：枚举文件和目录"),
+    ("GetCurrentDirectory", ["()"], "静态：获取当前工作目录"),
+    ("SetCurrentDirectory", ["(string path)"], "静态：设置当前工作目录"),
+    ("GetParent", ["(string path)"], "静态：获取父目录"),
+    ("Move", ["(string sourceDirName, string destDirName)"], "静态：移动目录"),
+]
+
+STREAM_READER = [
+    ("ReadLine", ["()"], "读一行；到末尾时返回 null"),
+    ("ReadToEnd", ["()"], "读完剩余内容"),
+    ("Read", ["()", "(char[] buffer, int index, int count)"], "读取字符"),
+    ("Peek", ["()"], "查看下一个字符但不消费"),
+    ("Close", ["()"], "关闭读取器"),
+    ("Dispose", ["()"], "释放读取器"),
+    ("new", ["(string path)", "(string path, Encoding encoding)"], "构造：从文件读取文本"),
+]
+
+STREAM_WRITER = [
+    ("Write", ["(string value)", "(char value)", "(object value)"], "写入内容"),
+    ("WriteLine", ["()", "(string value)"], "写入内容并换行"),
+    ("Flush", ["()"], "立即写出缓冲内容"),
+    ("Close", ["()"], "关闭写入器"),
+    ("Dispose", ["()"], "释放写入器"),
+    ("new", ["(string path)", "(string path, bool append)"], "构造：写入文件，可选择追加"),
+]
+
+MEMORY_STREAM = [
+    ("ToArray", ["()"], "返回流内容的副本"),
+    ("GetBuffer", ["()"], "返回内部缓冲区"),
+    ("Read", ["(byte[] buffer, int offset, int count)"], "读取字节"),
+    ("Write", ["(byte[] buffer, int offset, int count)"], "写入字节"),
+    ("Seek", ["(long offset, SeekOrigin origin)"], "移动读写位置"),
+    ("SetLength", ["(long value)"], "修改流长度"),
+    ("Flush", ["()"], "刷新缓冲区"),
+    ("Position", [""], "当前读写位置"),
+    ("Length", [""], "流长度"),
+    ("new", ["()", "(int capacity)", "(byte[] buffer)"], "构造内存流"),
+]
+
+TASK = [
+    ("IsCompleted", [""], "任务是否已完成"),
+    ("IsCanceled", [""], "任务是否已取消"),
+    ("IsFaulted", [""], "任务是否以异常结束"),
+    ("Status", [""], "当前任务状态"),
+    ("Wait", ["()", "(int millisecondsTimeout)"], "等待任务完成"),
+    ("Run", ["(Action action)", "(Func<Task> function)"], "静态：在线程池执行任务"),
+    ("Delay", ["(int millisecondsDelay)"], "静态：异步等待指定毫秒"),
+    ("WhenAll", ["(params Task[] tasks)"], "静态：等待所有任务完成"),
+    ("WhenAny", ["(params Task[] tasks)"], "静态：等待任一任务完成"),
+]
+
+REGEX = [
+    ("IsMatch", ["(string input, string pattern)"], "静态：判断是否匹配正则"),
+    ("Match", ["(string input, string pattern)"], "静态：查找第一个匹配"),
+    ("Matches", ["(string input, string pattern)"], "静态：查找全部匹配"),
+    ("Replace", ["(string input, string pattern, string replacement)"], "静态：替换匹配内容"),
+    ("Split", ["(string input, string pattern)"], "静态：按正则拆分"),
+    ("Escape", ["(string input)"], "静态：转义正则特殊字符"),
+    ("new", ["(string pattern)", "(string pattern, RegexOptions options)"], "构造正则"),
+]
+
+GUID = [
+    ("NewGuid", ["()"], "静态：创建新的 GUID"),
+    ("Parse", ["(string input)"], "静态：解析 GUID，失败时抛异常"),
+    ("TryParse", ["(string input, out Guid result)"], "静态：安全解析 GUID"),
+    ("ToString", ["()", "(string format)"], "格式化 GUID"),
+    ("Empty", [""], "全零 GUID"),
+]
+
+# ── 常用 Unity UI 包 API（package XML 通常不随 Editor 一起安装，手写补全）──
+SELECTABLE = [
+    ("interactable", [""], "是否允许交互"),
+    ("IsInteractable", ["()"], "当前是否可交互（也检查父级 CanvasGroup）"),
+    ("Select", ["()"], "选中此 UI 控件"),
+    ("OnSelect", ["(BaseEventData eventData)"], "控件被选中时调用"),
+    ("OnDeselect", ["(BaseEventData eventData)"], "控件取消选中时调用"),
+    ("OnPointerClick", ["(PointerEventData eventData)"], "收到鼠标或触摸点击时调用"),
+    ("OnSubmit", ["(BaseEventData eventData)"], "收到键盘/手柄确认时调用"),
+    ("IsPressed", ["()"], "当前是否处于按下状态"),
+]
+
+GRAPHIC = [
+    ("color", [""], "UI 图形颜色"),
+    ("raycastTarget", [""], "是否接收 UI 射线检测"),
+    ("enabled", [""], "是否启用该组件"),
+]
+
+BUTTON = [
+    ("onClick", [""], "点击事件；用 onClick.AddListener(...) 注册回调"),
+]
+
+IMAGE = [
+    ("sprite", [""], "显示的精灵图片"),
+    ("overrideSprite", [""], "临时覆盖显示的精灵"),
+    ("type", [""], "图片类型：Simple / Sliced / Tiled / Filled"),
+    ("preserveAspect", [""], "是否保持图片宽高比"),
+    ("fillAmount", [""], "Filled 类型的填充比例（0 到 1）"),
+    ("fillMethod", [""], "填充方向类型"),
+    ("SetNativeSize", ["()"], "按精灵原始尺寸设置 RectTransform"),
+]
+
+RAW_IMAGE = [
+    ("texture", [""], "显示的纹理"),
+    ("uvRect", [""], "纹理 UV 区域"),
+    ("SetNativeSize", ["()"], "按纹理原始尺寸设置 RectTransform"),
+]
+
+TEXT = [
+    ("text", [""], "显示文本"),
+    ("font", [""], "使用的字体"),
+    ("fontSize", [""], "字号"),
+    ("fontStyle", [""], "字体样式"),
+    ("alignment", [""], "文本对齐方式"),
+    ("horizontalOverflow", [""], "水平溢出处理"),
+    ("verticalOverflow", [""], "垂直溢出处理"),
+    ("supportRichText", [""], "是否解析富文本标签"),
+    ("resizeTextForBestFit", [""], "是否自动调整字号以适应区域"),
+]
+
+TOGGLE = [
+    ("isOn", [""], "当前是否勾选"),
+    ("onValueChanged", [""], "勾选状态变化事件"),
+    ("SetIsOnWithoutNotify", ["(bool value)"], "设置状态但不触发事件"),
+]
+
+SLIDER = [
+    ("value", [""], "当前数值"),
+    ("minValue", [""], "最小值"),
+    ("maxValue", [""], "最大值"),
+    ("wholeNumbers", [""], "是否限制为整数"),
+    ("onValueChanged", [""], "数值变化事件"),
+    ("SetValueWithoutNotify", ["(float input)"], "设置数值但不触发事件"),
+]
+
+INPUT_FIELD = [
+    ("text", [""], "输入框当前文本"),
+    ("placeholder", [""], "占位文本组件"),
+    ("characterLimit", [""], "允许输入的最大字符数"),
+    ("contentType", [""], "输入内容类型"),
+    ("onValueChanged", [""], "文本变化事件"),
+    ("onEndEdit", [""], "结束编辑事件"),
+    ("SetTextWithoutNotify", ["(string input)"], "设置文本但不触发事件"),
+    ("ActivateInputField", ["()"], "激活输入并打开软键盘"),
+]
+
+DROPDOWN = [
+    ("options", [""], "下拉选项列表"),
+    ("value", [""], "当前选中索引"),
+    ("onValueChanged", [""], "选项变化事件"),
+    ("ClearOptions", ["()"], "清空选项"),
+    ("AddOptions", ["(List<string> options)"], "添加文本选项"),
+    ("SetValueWithoutNotify", ["(int input)"], "设置选项但不触发事件"),
+]
+
+SCROLL_RECT = [
+    ("content", [""], "可滚动内容的 RectTransform"),
+    ("horizontal", [""], "是否允许水平滚动"),
+    ("vertical", [""], "是否允许垂直滚动"),
+    ("normalizedPosition", [""], "归一化滚动位置"),
+    ("verticalNormalizedPosition", [""], "垂直滚动位置（1 顶部，0 底部）"),
+    ("horizontalNormalizedPosition", [""], "水平滚动位置"),
+    ("onValueChanged", [""], "滚动位置变化事件"),
+]
+
+EVENT_SYSTEM = [
+    ("current", [""], "当前活动的 EventSystem"),
+    ("currentInputModule", [""], "当前输入模块"),
+    ("IsPointerOverGameObject", ["()", "(int pointerId)"], "判断指针是否位于 UI 上"),
+    ("SetSelectedGameObject", ["(GameObject selected)"], "设置当前选中的 UI 对象"),
+]
+
+BASE_EVENT_DATA = [
+    ("selectedObject", [""], "当前选中的游戏对象"),
+    ("currentInputModule", [""], "触发事件的输入模块"),
+    ("Use", ["()"], "标记事件已处理"),
+]
+
+POINTER_EVENT_DATA = [
+    ("position", [""], "屏幕指针位置"),
+    ("delta", [""], "本次移动量"),
+    ("pressPosition", [""], "按下时的屏幕位置"),
+    ("pointerPress", [""], "按下的游戏对象"),
+    ("pointerEnter", [""], "指针当前进入的游戏对象"),
+    ("pointerId", [""], "指针 ID；鼠标左键通常为 -1"),
+    ("button", [""], "鼠标按键类型"),
+]
+
+TMP_TEXT = [
+    ("text", [""], "显示文本"),
+    ("font", [""], "TextMesh Pro 字体资源"),
+    ("fontSize", [""], "字号"),
+    ("color", [""], "文本颜色"),
+    ("alignment", [""], "文本对齐方式"),
+    ("enableWordWrapping", [""], "是否自动换行"),
+    ("overflowMode", [""], "文本溢出处理"),
+    ("SetText", ["(string text)", "(string text, float arg0)"], "设置文本，可用格式占位符"),
+    ("ForceMeshUpdate", ["()"], "立即重建文本网格"),
+]
+
+TMP_INPUT_FIELD = [
+    ("text", [""], "输入框当前文本"),
+    ("placeholder", [""], "占位文本组件"),
+    ("characterLimit", [""], "允许输入的最大字符数"),
+    ("onValueChanged", [""], "文本变化事件"),
+    ("onEndEdit", [""], "结束编辑事件"),
+    ("SetTextWithoutNotify", ["(string input)"], "设置文本但不触发事件"),
+    ("ActivateInputField", ["()"], "激活输入并打开软键盘"),
+]
+
+UNITY_PACKAGE_TYPES = [
+    ("UnityEngine.UI.Selectable", "Selectable", SELECTABLE, "UnityEngine.UI"),
+    ("UnityEngine.UI.Graphic", "Graphic", GRAPHIC, "UnityEngine.UI"),
+    ("UnityEngine.UI.Button", "Button", BUTTON + SELECTABLE, "UnityEngine.UI"),
+    ("UnityEngine.UI.Image", "Image", IMAGE + GRAPHIC, "UnityEngine.UI"),
+    ("UnityEngine.UI.RawImage", "RawImage", RAW_IMAGE + GRAPHIC, "UnityEngine.UI"),
+    ("UnityEngine.UI.Text", "Text", TEXT + GRAPHIC, "UnityEngine.UI"),
+    ("UnityEngine.UI.Toggle", "Toggle", TOGGLE + SELECTABLE, "UnityEngine.UI"),
+    ("UnityEngine.UI.Slider", "Slider", SLIDER + SELECTABLE, "UnityEngine.UI"),
+    ("UnityEngine.UI.InputField", "InputField", INPUT_FIELD + SELECTABLE, "UnityEngine.UI"),
+    ("UnityEngine.UI.Dropdown", "Dropdown", DROPDOWN + SELECTABLE, "UnityEngine.UI"),
+    ("UnityEngine.UI.ScrollRect", "ScrollRect", SCROLL_RECT, "UnityEngine.UI"),
+    ("UnityEngine.UI.CanvasScaler", "CanvasScaler",
+     [("uiScaleMode", [""], "UI 缩放模式"), ("referenceResolution", [""], "参考分辨率"),
+      ("matchWidthOrHeight", [""], "宽高匹配比例")], "UnityEngine.UI"),
+    ("UnityEngine.UI.GraphicRaycaster", "GraphicRaycaster",
+     [("eventCamera", [""], "用于 UI 射线检测的相机"), ("ignoreReversedGraphics", [""], "是否忽略反向图形")],
+     "UnityEngine.UI"),
+    ("UnityEngine.EventSystems.EventSystem", "EventSystem", EVENT_SYSTEM, "UnityEngine.EventSystems"),
+    ("UnityEngine.EventSystems.EventTrigger", "EventTrigger",
+     [("triggers", [""], "事件触发条目列表"),
+      ("OnPointerClick", ["(PointerEventData eventData)"], "指针点击回调"),
+      ("OnPointerDown", ["(PointerEventData eventData)"], "指针按下回调"),
+      ("OnPointerUp", ["(PointerEventData eventData)"], "指针抬起回调"),
+      ("OnPointerEnter", ["(PointerEventData eventData)"], "指针进入回调"),
+      ("OnPointerExit", ["(PointerEventData eventData)"], "指针离开回调"),
+      ("OnBeginDrag", ["(PointerEventData eventData)"], "开始拖动回调"),
+      ("OnDrag", ["(PointerEventData eventData)"], "拖动中回调"),
+      ("OnEndDrag", ["(PointerEventData eventData)"], "结束拖动回调"),
+      ("OnDrop", ["(PointerEventData eventData)"], "放下对象时调用"),
+      ("OnScroll", ["(PointerEventData eventData)"], "滚轮滚动回调")],
+     "UnityEngine.EventSystems"),
+    ("UnityEngine.EventSystems.BaseEventData", "BaseEventData", BASE_EVENT_DATA, "UnityEngine.EventSystems"),
+    ("UnityEngine.EventSystems.PointerEventData", "PointerEventData",
+     POINTER_EVENT_DATA, "UnityEngine.EventSystems"),
+    ("TMPro.TMP_Text", "TMP_Text", TMP_TEXT, "TMPro"),
+    ("TMPro.TextMeshProUGUI", "TextMeshProUGUI", TMP_TEXT, "TMPro"),
+    ("TMPro.TextMeshPro", "TextMeshPro", TMP_TEXT, "TMPro"),
+    ("TMPro.TMP_InputField", "TMP_InputField", TMP_INPUT_FIELD, "TMPro"),
+    ("TMPro.TMP_Dropdown", "TMP_Dropdown", DROPDOWN, "TMPro"),
+]
+
 # 表名 -> (类型显示名, 成员, 是否是类型)
 BCL = [
     ("Console", "Console", CONSOLE, False),
@@ -323,7 +612,8 @@ BCL = [
     ("HashSet", "HashSet<T>", HASHSET, False),
     ("KeyValuePair", "KeyValuePair<K,V>", KEYVALUEPAIR, False),
     ("Array", "Array", ARRAY, False),
-    ("Random", "Random", RANDOM, False),
+    # 与 UnityEngine.Random 同名；单独存一份，前端按 C#/Unity 模式解析。
+    ("SystemRandom", "Random", RANDOM, False),
     ("Convert", "Convert", CONVERT, False),
     ("IEnumerator", "IEnumerator", IENUMERATOR, False),
     ("IEnumerable", "IEnumerable", IENUMERABLE, False),
@@ -335,6 +625,15 @@ BCL = [
     ("Exception", "Exception", EXCEPTION, False),
     ("DateTime", "DateTime", DATETIME, False),
     ("TimeSpan", "TimeSpan", TIMESPAN, False),
+    ("Path", "Path", PATH_MEMBERS, False),
+    ("SystemFile", "File", FILE_MEMBERS, False),
+    ("SystemDirectory", "Directory", DIRECTORY_MEMBERS, False),
+    ("StreamReader", "StreamReader", STREAM_READER, False),
+    ("StreamWriter", "StreamWriter", STREAM_WRITER, False),
+    ("MemoryStream", "MemoryStream", MEMORY_STREAM, False),
+    ("Task", "Task", TASK, False),
+    ("Regex", "Regex", REGEX, False),
+    ("Guid", "Guid", GUID, False),
     ("int", "int", INT_MEMBERS, True),
     ("float", "float", FLOAT_MEMBERS, True),
     ("double", "double", DOUBLE_MEMBERS, True),
@@ -361,7 +660,7 @@ BCL_NS = {
     "String":        "System",
     "Math":          "System",
     "Array":         "System",
-    "Random":        "System",
+    "SystemRandom":  "System",
     "Convert":       "System",
     "Object":        "System",
     "Action":        "System",
@@ -369,6 +668,15 @@ BCL_NS = {
     "Exception":     "System",
     "DateTime":      "System",
     "TimeSpan":      "System",
+    "Path":          "System.IO",
+    "SystemFile":    "System.IO",
+    "SystemDirectory": "System.IO",
+    "StreamReader":  "System.IO",
+    "StreamWriter":  "System.IO",
+    "MemoryStream":  "System.IO",
+    "Task":          "System.Threading.Tasks",
+    "Regex":         "System.Text.RegularExpressions",
+    "Guid":          "System",
 }
 
 
@@ -386,12 +694,25 @@ MONO_LIFECYCLE = [
     ("OnTriggerEnter", ["(Collider other)"], "进入触发器（至少一方勾 Is Trigger）"),
     ("OnTriggerStay", ["(Collider other)"], "停留在触发器期间每帧调用"),
     ("OnTriggerExit", ["(Collider other)"], "离开触发器时调用"),
+    ("OnTriggerEnter2D", ["(Collider2D other)"], "2D：进入触发器时调用"),
+    ("OnTriggerStay2D", ["(Collider2D other)"], "2D：停留在触发器期间调用"),
+    ("OnTriggerExit2D", ["(Collider2D other)"], "2D：离开触发器时调用"),
     ("OnCollisionEnter", ["(Collision other)"], "发生碰撞时调用（双方都不是 Trigger）"),
     ("OnCollisionStay", ["(Collision other)"], "碰撞接触期间每帧调用"),
     ("OnCollisionExit", ["(Collision other)"], "碰撞分离时调用"),
+    ("OnCollisionEnter2D", ["(Collision2D collision)"], "2D：发生碰撞时调用"),
+    ("OnCollisionStay2D", ["(Collision2D collision)"], "2D：碰撞接触期间调用"),
+    ("OnCollisionExit2D", ["(Collision2D collision)"], "2D：碰撞分离时调用"),
     ("OnMouseDown", ["()"], "鼠标点中本对象的 Collider 时调用"),
     ("OnMouseUp", ["()"], "鼠标在 Collider 上松开时调用"),
     ("OnApplicationQuit", ["()"], "应用退出前调用"),
+    ("OnApplicationFocus", ["(bool hasFocus)"], "应用获得或失去焦点时调用"),
+    ("OnApplicationPause", ["(bool pauseStatus)"], "应用暂停或恢复时调用"),
+    ("OnGUI", ["()"], "IMGUI 每帧绘制时调用"),
+    ("OnValidate", ["()"], "Inspector 中字段变化时在编辑器调用"),
+    ("Reset", ["()"], "组件首次添加或 Inspector 点 Reset 时调用"),
+    ("OnDrawGizmos", ["()"], "编辑器中持续绘制 Gizmos"),
+    ("OnDrawGizmosSelected", ["()"], "编辑器中仅选中对象时绘制 Gizmos"),
     ("OnBecameVisible", ["()"], "进入任意相机视野时调用"),
     ("OnBecameInvisible", ["()"], "离开所有相机视野时调用"),
 ]
@@ -399,6 +720,11 @@ MONO_LIFECYCLE = [
 # 不新建类型的补充成员，直接挂到已有类型下（key = 类型短名）
 EXTRA = {
     "MonoBehaviour": MONO_LIFECYCLE,
+}
+
+PACKAGE_NS = {
+    display: namespace
+    for _qualified, display, _members, namespace in UNITY_PACKAGE_TYPES
 }
 
 
@@ -421,3 +747,15 @@ def entries():
                 grouped.setdefault(name, []).append({"s": sig, "d": doc, "k": "M"})
         for name, items in grouped.items():
             yield ("%s.%s" % (owner, name), items)
+    # UGUI / TextMesh Pro 是独立包，不在 UnityEngine.* 的 XML 列表中。
+    # 这里仅维护常用类型，保证不会被标记为 C# 基础库。
+    for qualified, display, members, _namespace in UNITY_PACKAGE_TYPES:
+        description = "常用 Unity UI / TextMesh Pro API"
+        yield ("__type__", display)
+        yield (display, [{"s": "", "d": description, "k": "type"}])
+        grouped = {}
+        for name, sigs, doc in members:
+            for sig in sigs:
+                grouped.setdefault(name, []).append({"s": sig, "d": doc, "k": "M"})
+        for name, items in grouped.items():
+            yield ("%s.%s" % (display, name), items)

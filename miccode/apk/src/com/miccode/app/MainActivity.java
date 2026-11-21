@@ -3,6 +3,7 @@ package com.miccode.app;
 import android.app.Activity;
 import android.app.ActivityOptions;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -106,11 +107,21 @@ public class MainActivity extends Activity {
                     Intent i = new Intent(Intent.ACTION_GET_CONTENT);
                     i.addCategory(Intent.CATEGORY_OPENABLE);
                     i.setType("*/*");
-                    // 网页端 input 带 multiple 时要允许多选（长按第一个文件可多选）
-                    if (params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) {
-                        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+
+                    // 永远允许多选，不依赖 params.getMode()：
+                    // 网页的 input 是 JS 动态设置的 multiple，部分 WebView 识别不到，
+                    // getMode() 会返回 SINGLE → 系统选择器只让选一个（真机实测症状）。
+                    // 单选时用户本来就只选一个，加这个 extra 没有任何副作用。
+                    i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+
+                    // 也不再包 createChooser：国产 ROM 的文件管理器有时不会转发
+                    // chooser 里 EXTRA_INTENT 携带的 ALLOW_MULTIPLE。
+                    try {
+                        startActivityForResult(i, 1001);
+                    } catch (ActivityNotFoundException noDefault) {
+                        // 设备上没有默认文件管理器时才退回 chooser
+                        startActivityForResult(Intent.createChooser(i, "选择代码文件"), 1001);
                     }
-                    startActivityForResult(Intent.createChooser(i, "选择代码文件"), 1001);
                 } catch (Exception e) {
                     fileCallback = null;
                     return false;
@@ -548,7 +559,18 @@ public class MainActivity extends Activity {
                 web.goBack();
                 return true;
             }
-            askExit();
+            if (web != null) {
+                // 面板开着时返回键先关面板，而不是弹退出确认
+                web.evaluateJavascript(
+                    "(window.__closeTop && window.__closeTop()) || false",
+                    new ValueCallback<String>() {
+                        public void onReceiveValue(String v) {
+                            if (v == null || !v.contains("true")) askExit();
+                        }
+                    });
+            } else {
+                askExit();
+            }
             return true;
         }
         return super.onKeyDown(code, e);
@@ -560,16 +582,22 @@ public class MainActivity extends Activity {
      *   named   → 已存成文件，静默落盘后直接退（自动保存，不打扰）
      *   unnamed → 只是草稿，问一句要不要先存成文件
      */
+    private AlertDialog exitDialog;
+    private boolean exitAsking = false;
+
     private void askExit() {
         if (web == null) { finish(); return; }
+        if (exitAsking && exitDialog != null && exitDialog.isShowing()) return;  // 防重复弹窗
+        exitAsking = true;
         web.evaluateJavascript(
             "(window.__exitState && window.__exitState()) || 'empty'",
             new ValueCallback<String>() {
                 public void onReceiveValue(String v) {
                     String st = v == null ? "empty" : v.replace("\"", "").trim();
+                    exitAsking = false;
                     if (!"unnamed".equals(st)) { finish(); return; }
                     try {
-                        new AlertDialog.Builder(MainActivity.this)
+                        exitDialog = new AlertDialog.Builder(MainActivity.this)
                             .setTitle("还没存成文件")
                             .setMessage("当前内容只是草稿（会自动保存，但不在文件列表里）。要先存成文件吗？")
                             .setPositiveButton("去保存", new DialogInterface.OnClickListener() {
@@ -582,8 +610,12 @@ public class MainActivity extends Activity {
                                 public void onClick(DialogInterface d, int w) { finish(); }
                             })
                             .setNeutralButton("取消", null)
+                            .setOnDismissListener(new DialogInterface.OnDismissListener() {
+                                public void onDismiss(DialogInterface d) { exitAsking = false; }
+                            })
                             .show();
                     } catch (Throwable t) {
+                        exitAsking = false;
                         finish();   // 弹窗失败也不能卡住退出
                     }
                 }

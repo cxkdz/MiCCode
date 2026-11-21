@@ -28,15 +28,17 @@ MiCCode 的取舍是：**能离线做的全做进 APK，真正需要编译的部
 |---|---|---|
 | 语法高亮 / 行号 / 括号匹配 | CodeMirror 5，本地打包 | 无 |
 | 关键字补全 | 打 `pu` → `public` / `private` / `protected` | 无 |
-| 类型补全 | 打 `IEn` → `IEnumerator`（13764 条 API 索引） | 无 |
+| 类型补全 | 打 `IEn` → `IEnumerator`；Unity 模式补全协程、UGUI、TextMesh Pro 常用类型 | 无 |
 | 成员补全（L2） | `Console.` → 列出成员；`Queue<int> q` 后 `q.` 能推断类型 | 无 |
 | 悬停看签名 | 列出全部重载 + 说明，含中文手写文档 | 无 |
+| 常用 Unity API | 协程、2D 生命周期、UGUI、TextMesh Pro；识别 Unity 脚本后自动启用对应补全 | 无 |
 | 自动补 using | 选中 `SceneManager` 自动插入 `using UnityEngine.SceneManagement;` | 无 |
 | 文件管理 | 新建 / 命名保存 / 打开 / 删除 / 一键清空 | 无 |
+| 整理缩进 | 按 C# 语法整理全文；有选区时只整理选中行 | 无 |
 | 导入 | 单个 `.cs`、多选、整个文件夹（递归）、GitHub 仓库 | 无（GitHub 需联网） |
 | 导出 | 写到 `下载/MiCCode/` | 无 |
 | 分屏搭子 | 一键把 AI 应用放到相邻窗口 | 无 |
-| **编译运行** | 点「运行」出结果 | **Termux + mono**（或连 PC） |
+| **编译运行与控制台输入** | 点「运行」出结果；可在「程序输入」里逐行提供 `Console.ReadLine()` 内容 | **Termux + mono**（或连 PC） |
 
 ![文件面板](docs/files.png)
 ![选择搭子](docs/picker.png)
@@ -49,9 +51,9 @@ MiCCode 的取舍是：**能离线做的全做进 APK，真正需要编译的部
 
 补全和悬停通常要 Roslyn（几百 MB 的 .NET 编译器平台），安卓上跑不动。这里的做法是**把 API 索引预先算好**：
 
-- 从 Unity 安装目录的 90 个 XML 文档（`Managed/UnityEngine/*.xml`）解析出 **13764 条成员、1339 个类型**，压缩到 **1.84 MB** 的 `symbols.json`
-- 手写补充 218 条基础类库符号（`Console` / `List<T>` / `Queue<T>` / `Thread` / `IEnumerator` …）——因为 Unity 的 XML **只覆盖 `UnityEngine.*`**
-- 手写 19 条 `MonoBehaviour` 生命周期（`Awake`/`Start`/`Update`/`OnTriggerEnter`…）——这些是 `protected`，XML 里根本不收录
+- 从当前 Unity 安装的模块 XML 解析出 **13764 条引擎成员**，并合并基础类库、协程生命周期和 UGUI/TMP 常用补充，共 **14277 条索引项、1368 个类型**
+- 补充 `Console`、`File`、`Task`、`Regex` 等常用基础类库，以及 Unity UI / TextMesh Pro 独立包 API
+- 手写补齐 2D/3D 碰撞触发、应用焦点/暂停、编辑器验证等 `MonoBehaviour` 生命周期回调
 - 每个类型带命名空间映射，共 1493 条，用于「自动补 using」
 
 代价是：只能查到**符号表里有的东西**，查不到泛型约束、重载解析这类语义信息。收益是：**整套索引 1.84 MB，断网可用，冷启动毫秒级**。
@@ -146,6 +148,8 @@ python server.py --no-browser
 
 写代码、补全、悬停签名、文件管理、导入导出全部离线可用，只有「运行」会提示需要服务。也可以让平板连 PC：PC 上 `python server.py --host 0.0.0.0`，平板浏览器打开 `http://<PC的IP>:8080`。
 
+> 安全提醒：`--host 0.0.0.0` 会让同一网络中的设备访问运行服务。请只在可信网络使用，不要把 8080 端口转发到公网；服务会拒绝跨源网页调用，但仍应把网络上的直连客户端视为可信用户。
+
 ---
 
 ## 两种模式
@@ -201,7 +205,7 @@ python build_symbols.py "D:/Unity/Editor/Data/Managed/UnityEngine" -o symbols.js
 ```
 miccode/
 ├── index.html           编辑器全部前端逻辑（CodeMirror + 补全 + 悬停 + 文件 + GitHub 拉取）
-├── symbols.json         符号表（13764 成员 / 1339 类型 / 1493 命名空间）
+├── symbols.json         符号表（14277 条索引项 / 1368 类型）
 ├── server.py            本地编译服务（静态托管 + /api/run + /api/info），零依赖
 ├── build_symbols.py     从 Unity XML 生成符号表
 ├── bcl_symbols.py       手写 BCL 符号 + 命名空间映射
@@ -241,3 +245,18 @@ miccode/
 ## 许可
 
 暂未指定许可证。如需使用请先联系作者。
+
+---
+
+## 近期修复记录
+
+**v2.7 修复记录**：多选导入在真机上只导一个（`FileChooserParams.getMode()` 识别不了 JS 动态设置的 `multiple`，改为无条件加 `EXTRA_ALLOW_MULTIPLE` 并去掉 chooser 包装）；同名文件静默覆盖（自动改名为 `X(2).cs`）；无头测试自抓到一个注释里的 `*/` 提前闭合导致整段 JS 失效的问题。
+
+同批修复的还有：`string.` / `String.Format` 因 BCL 与 Unity 类型名大小写不一致而整块查不到；「载入示例」在 APK 里因 `confirm()` 被 WebChromeClient 静默拒绝而永远失效（改两段式）；localStorage 写满后静默丢数据；切换文件前不落盘的 400ms 窗口；重启后当前文件名丢失；GitHub 链接带 `#L10` / `?plain=1` 解析失败；导出取 400ms 前旧内容；编译服务晚起后永久判定离线；服务端两种输入触发 500。
+
+
+**v2.8**：重启时恢复当前文件的代码和 C#/Unity 模式；存储不可用或写满时不再假报保存成功；新增 Console.ReadLine() 逐行输入区；服务端增加来源校验、并发限制和输出上限，并停止把未实现的 .NET CLI 误报为可运行。
+
+**v2.9**：新增「整理缩进」按钮与 `Alt+Shift+F` 快捷键；有选区时整理选中行，无选区时整理全文。
+
+**v2.10**：补齐协程周边等待类型、2D/应用生命周期回调、UGUI/TextMesh Pro、常见文件/路径/任务/正则 API；修正 C# `Random` 与 Unity `Random` 的符号冲突，并在识别到 Unity 脚本时启用 Unity API 补全。

@@ -9,13 +9,16 @@
 | 两种模式 | 左上角切换「C# 脚本 / Unity 脚本」，只载入对应的 API 集合 |
 | 语法高亮 | C# 关键字、字符串、注释、行号、括号自动配对 |
 | 关键字补全 | 打 `pu` → 弹出 `public` |
-| 类型补全 | 打 `Vec` → 弹出 `Vector3` 等类型名 |
+| 类型补全 | Unity 模式支持 UnityEngine、协程、UGUI 和 TextMesh Pro 常用类型；检测到 Unity 脚本时自动切换 |
 | 成员补全 | 打 `Console.` → 列出 `WriteLine / Write / ReadLine / ReadKey / Clear` |
 | 上下文补全（L2） | 先写 `StringBuilder sb = new StringBuilder();`，再打 `sb.` → 列出 StringBuilder 的成员 |
 | 继承成员补全 | 类声明为 `: MonoBehaviour` 后，打 `Sta` → 第一候选就是 `StartCoroutine` |
+| 协程与 Unity UI | `Coroutine`、等待指令、2D 碰撞回调、Button/Image/Text、EventSystem、TMP_Text 等常用符号 |
 | 悬停签名 | 鼠标停在 `WriteLine` 上 → 浮窗列出全部重载 + 说明；触摸屏长按 450ms 也能触发 |
 | 底部签名栏 | 光标停在任何标识符上，底栏显示它的签名和说明 |
+| 整理缩进 | 点「整理缩进」重排全文；选中代码时只整理选中行（`Alt+Shift+F`） |
 | 一键运行 | 点「运行」或按 `Ctrl+Enter`，编译并在右侧显示输出 |
+| 控制台输入 | 展开输出区里的「程序输入」，逐行填写内容供 `Console.ReadLine()` 读取 |
 | 发给搭档 | 一键把当前代码复制到剪贴板，切到 AI 粘贴即可（快捷键 `Ctrl+Shift+C`） |
 | 自动分屏 | 点「搭子」把 AI 应用放到相邻窗口；列表来自设备真实安装的应用，带真实图标 |
 | 文件管理 | 「文件」按钮（`Ctrl+S`）：新建、命名保存、打开、删除；保存时连 C#/Unity 模式一起记录 |
@@ -26,15 +29,17 @@
 | 导出 | 列表每行的 `↓`：APK 写到 `下载/MiCCode/`（重名自动加 (1)），浏览器直接下载 |
 | 草稿保护 | 未命名内容自动存 localStorage；已保存的文件编辑时自动同步 |
 
-符号表规模：**13764 条引擎/基础库 API（含 218 条手写 BCL 补充），共 1339 个类型**。
+符号表规模：**14277 条索引项（含 Unity XML 与手写补充），共 1368 个类型**。
 
 ### 两种模式的区别
 
 | | C# 脚本 | Unity 脚本 |
 |---|---|---|
-| 补全用的 API | 只有基础类库（`Console` `String` `Math` `List` … 11 个类型） | 加上 13000+ 条 UnityEngine API |
+| 补全用的 API | 基础类库（`Console`、`String`、`Random`、`File` 等） | 加上 13000+ 条 Unity API 和 UI/TMP 常用符号 |
 | 候选列表 | 干净，打 `p` 只出 4 个关键字 | 打 `p` 会带上 `ParticleSystem` 等 |
 | 能不能运行 | 能 | **不能**，只用来写和查签名 |
+
+代码中出现 `MonoBehaviour`、`Coroutine`、`using UnityEngine;` 等 Unity 特征时会自动切到 Unity 模式，避免 Unity API 被基础 C# 模式过滤。
 
 切换模式时如果编辑器里还是原模板，会自动换成对应模板；如果你已经改了代码，它不会动你的内容。
 
@@ -65,6 +70,8 @@ http://192.168.1.100:8080
 ```
 
 > 编译在 PC 上执行，平板只是显示器。PC 关机/断网就不能用。
+>
+> 安全提醒：`--host 0.0.0.0` 会让同一网络中的设备访问运行服务。请只在可信网络使用，不要把 8080 端口转发到公网；服务会拒绝跨源网页调用，但仍应把网络上的直连客户端视为可信用户。
 
 ### 方式 B：平板本地跑（离线，半小时）
 
@@ -198,7 +205,7 @@ python server.py --no-browser
 
 ## 打包成 APK
 
-`apk/MiCCode.apk` 是已经打好签名的安装包（718 KB，v1.5 / versionCode 6）。
+`apk/MiCCode.apk` 是已经打好签名的安装包（约 770 KB，v2.10 / versionCode 21）。
 
 ### 界面在 APK 里，编译在 Termux 里
 
@@ -339,7 +346,7 @@ foo.         // ❌ 如果 foo 的类型不是在上面那种写法里声明的�
 miccode/
 ├── index.html        编辑器界面（CodeMirror 5 + 补全 + 悬停 + 搭子分屏）
 ├── server.py         本地服务（静态文件 + 编译执行 + 分屏），零依赖
-├── symbols.json      符号表（13000+ Unity + 218 BCL，含类型→命名空间映射）
+├── symbols.json      符号表（Unity、BCL、UGUI、TMP 常用 API，含类型→命名空间映射）
 ├── build_symbols.py  从 Unity 的 XML 文档重新生成符号表
 ├── bcl_symbols.py    手写的基础类库符号（Console / String / Math / List ...）
 ├── manifest.json     PWA 配置（添加到主屏时的名称、图标、全屏模式）
@@ -362,7 +369,7 @@ python build_symbols.py "D:/unity/2022.3.48t7/Editor/Data/Managed/UnityEngine"
 
 ### 扩充基础类库
 
-`bcl_symbols.py` 里目前手写了 11 个类型。缺什么就往对应的列表里加一条：
+`bcl_symbols.py` 维护基础类库、常用 Unity 生命周期函数和独立 UI/TMP 包的补充符号。缺什么就往对应的成员列表加一条：
 
 ```python
 STRING = [

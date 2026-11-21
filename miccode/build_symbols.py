@@ -238,7 +238,12 @@ def main():
     bcl_owners = []
     try:
         import bcl_symbols
-        bcl_owners = [k for k, _disp, _members, _is in bcl_symbols.BCL]
+        for key, display, _members, _is in bcl_symbols.BCL:
+            # key 是符号 owner；display 是用户输入的类型名，二者都需纳入模式过滤。
+            for owner in (key, display):
+                bare = owner.split("<", 1)[0]
+                if bare not in bcl_owners:
+                    bcl_owners.append(bare)
         for key, items in bcl_symbols.entries():
             if key == "__type__":
                 types.add(items)
@@ -254,14 +259,21 @@ def main():
         print("  %-46s %6d 条" % ("<BCL 手写补充>", bcl_count))
         if hasattr(bcl_symbols, "BCL_NS"):
             ns_map.update(bcl_symbols.BCL_NS)
+        # UGUI / TextMesh Pro 来自独立 Package，不在 UnityEngine XML 白名单中。
+        if hasattr(bcl_symbols, "PACKAGE_NS"):
+            ns_map.update(bcl_symbols.PACKAGE_NS)
     except ImportError:
         print("  (未找到 bcl_symbols.py，跳过基础类库)")
 
+    xml_members = sum(module_stats.values())
+    total_members = xml_members + bcl_count
     data = {
         "meta": {
             "source": src,
             "modules": list(module_stats.keys()),
-            "members": sum(module_stats.values()),
+            "members": total_members,
+            "xmlMembers": xml_members,
+            "supplementalMembers": bcl_count,
             "types": len(types),
             "built": time.strftime("%Y-%m-%d %H:%M"),
         },
@@ -275,7 +287,8 @@ def main():
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
 
     size = os.path.getsize(out_path) / 1024.0
-    print("\n总计 %d 条成员 / %d 个类型" % (sum(module_stats.values()), len(types)))
+    print("\n总计 %d 条索引项（XML %d + 手写补充 %d）/ %d 个类型" %
+          (total_members, xml_members, bcl_count, len(types)))
     print("输出 %s（%.0f KB）" % (out_path, size))
 
 
